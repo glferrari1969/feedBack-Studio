@@ -1,0 +1,13 @@
+node_modules/
+dist/
+tsconfig.tsbuildinfo
+.agents/
+.vscode/
+src/data_gear_tmp.txt
+
+backend/.venv/
+backend/workspace/
+backend/uploads/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/*.log
