@@ -80,23 +80,43 @@ http://localhost:8000/api/health
 The top-right menu follows the main editing flow in this order:
 
 1. **Import / convert**
+
+   ![Import and convert tab](docs/screenshots/import-convert.png)
+
    - Open an existing feedpak.
    - Convert a Rocksmith PSARC.
    - Create a feedpak from an audio file.
    - This is the startup page and the entry point for a new project.
 
 2. **Metadata**
+
+   ![Metadata tab](docs/screenshots/metadata.png)
+
    - Edit artist, album, title, year, cover art, technical metadata, lyrics source, chart author, version, notes, and custom references.
    - Use **Back to editor** to return to arrangement editing.
 
-3. **Editor**
+3. **Audio**
+
+   ![Audio tab](docs/screenshots/audio.png)
+
+   - Select the project audio source and control playback, volume, mute, and solo for every available stem.
+   - Review the stems stored in the current feedpak and generate compatible guitar, bass, drum, or lyric arrangements.
+   - Run Demucs separation when the project contains only the full mix.
+
+4. **Arrangements**
+
+   ![Arrangements tab](docs/screenshots/arrangements.png)
+
    - Work on arrangements, sync points, waveform, tab/piano roll, score view, and tone chains.
    - Use the arrangement selector for import/export controls.
    - Replace the current arrangement from MIDI or Guitar Pro.
    - Export the selected arrangement as MIDI or MusicXML.
    - Editor changes remain pending until **Write to original feedpak** is used.
 
-4. **Lyrics / karaoke**
+5. **Lyrics / karaoke**
+
+   ![Lyrics and karaoke tab](docs/screenshots/lyrics-karaoke.png)
+
    - Edit synced lyric markers directly on the waveform.
    - Use **Auto Sync pasted text** to align the exact pasted lyrics with recognized word timing. The synchronizer tries the available detailed timing sources before using the vocal-region fallback, while preserving readable line breaks.
    - Use **Resync current lyrics** to run the same advanced alignment on the lyrics already loaded in the editor.
@@ -104,21 +124,14 @@ The top-right menu follows the main editing flow in this order:
    - Use **Recognise lyrics** to transcribe and synchronize from audio. Running it again replaces the current lyric text and synchronization with the newly recognized result; save the current version first if it must be retained.
    - Lyrics changes are saved together with the project by **Write to original feedpak**.
 
-5. **Tones**
-   - Select the arrangement and audio source in the first column; the tone-change editor and effect chain are shown in the second column.
-   - Use **Generate tones from selected stem** in the first column to analyse a compatible guitar, bass, or instrument stem. Generation reports its current step and percentage, then applies the identified tones directly to the arrangement selected when the operation started.
-   - Generated base/timeline changes become active immediately. Existing tone definitions are retained even when unused; only definitions regenerated with the same name are refreshed.
-   - Use **Delete tone** to remove the selected definition. If it is in use, the app asks for confirmation and then removes its base/timeline references from every arrangement; if the deleted tone was a base tone, the first remaining definition becomes the new base.
-   - Play or pause the selected audio and return playback to the beginning directly from the tone-change editor.
-   - Edit tone changes on a real-audio waveform. The tone-sync lane is placed immediately above the waveform and shares the same horizontal scroll, time scale, zoom, and playhead.
-   - Drag a marker to retime a tone change, click to seek, or double-click the waveform/lane to add a new change.
-   - Use waveform zoom up to 1600% for fine timing adjustments.
-   - Edit the `GearList` effect chain, effect parameters, and raw feedpak tone JSON with the standard text controls.
-   - Click a specific effect in the chain to open its separate graphical control panel. The standard Tone Editor remains unchanged until an effect is opened.
-   - The graphical panel uses original feedBack Studio artwork for generic pedals, amplifiers, cabinets, racks, and utility devices. Its knobs, EQ faders, LEDs, and switches are drawn with CSS/HTML and are not copied from commercial hardware.
-   - Graphical knobs, faders, and switches modify the same parameter values stored in the selected effect (`KnobValues`, `Parameters`, `Params`, or compatible variants).
-   - Close the graphical panel with **Close**, by clicking its backdrop, or by pressing **Esc**.
-   - The complete Tones interface is presented in English.
+6. **Tones**
+
+   ![Tones tab](docs/screenshots/tones.png)
+
+   - Select the arrangement and audio source, then edit tone changes and the effect chain for the active arrangement.
+   - Use **Generate tones from selected stem** to analyze a compatible stem and create or refresh tone definitions automatically.
+   - Use **Delete tone** to remove a definition and its references from the arrangement when needed.
+   - Edit tone timing directly on the waveform and tone-sync lane, then adjust gear and effect parameters in the text editor or graphical controls.
    - Tone changes are saved together with the project by **Write to original feedpak**.
 
 ## Save model
