@@ -29,11 +29,11 @@ export function AlbumArtEditor({ project, onChange }: AlbumArtEditorProps) {
         {cover ? <img src={cover} alt="Album cover" /> : <span>No cover</span>}
       </div>
       <div className="albumArtControls">
-        <label className="smallButton fileButton">
+        <label className="smallButton fileButton albumArtButton">
           Change cover
           <input type="file" accept="image/png,image/jpeg,image/webp,image/bmp,.dds" onChange={(event) => changeCover(event.target.files?.[0])} />
         </label>
-        {cover ? <button type="button" className="smallButton dangerButton" onClick={clearCover}>Remove cover</button> : null}
+        {cover ? <button type="button" className="smallButton albumArtButton" onClick={clearCover}>Remove cover</button> : null}
         <span className="miniMeta">The cover is saved inside the feedpak manifest.</span>
       </div>
     </div>

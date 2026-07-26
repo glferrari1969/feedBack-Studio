@@ -2238,11 +2238,9 @@ export default function App() {
                     notes={project.notes}
                     selectedTrackId={selectedArrangementId}
                     arrangementKind={editorKind}
-                    arrangementName={selectedArrangement?.name}
                     duration={project.duration}
                     currentTime={currentTime}
                     tuning={selectedArrangement?.tuning}
-                    capo={selectedArrangement?.capo}
                     zoom={tabZoom}
                     syncPoints={project.syncPoints}
                     tones={selectedArrangement?.tones}

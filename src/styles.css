@@ -191,17 +191,32 @@ code { color: #bae6fd; }
 
 .tabEditorHeader { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .tabEditorHeader h2 { margin: 0; font-size: 14px; }
-.tabEditorHeader span { display: block; color: #94a3b8; font-size: 12px; margin-top: 2px; }
 .tabToolbar { display: flex; align-items: end; gap: 10px; }
 .tabToolbar label { display: grid; gap: 4px; color: #cbd5e1; font-size: 11px; }
 .tabToolbar select, .tabToolbar input { width: 88px; background: #020617; color: #e5e7eb; border: 1px solid #334155; border-radius: 9px; padding: 6px 8px; }
 
 .tabPresetBar { display: grid; grid-template-columns: minmax(130px, 170px) minmax(240px, 1fr) minmax(240px, 1fr); gap: 8px; padding: 10px 13px 0; align-items: end; }
-.tabPresetBar select { background: #020617; color: #e5e7eb; border: 1px solid #334155; border-radius: 9px; padding: 7px 9px; width: 100%; }
+.tabPresetBar select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px;
+  padding: 7px 9px;
+  background: #020617;
+  color: #93c5fd;
+  border: 1px solid #334155;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
 .tabPresetBar .tabPresetField { display: grid; gap: 4px; color: #cbd5e1; font-size: 11px; }
 .tabPresetBar .tabPresetWide { min-width: 0; }
 .tabPresetBar .tuningSummary {
-  align-self: center;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  align-self: end;
+  min-height: 36px;
   color: #93c5fd;
   font-size: 13px;
   font-weight: 800;
@@ -1504,6 +1519,19 @@ button:not(.dangerButton):not(.toneSegment):not(.toneSyncMarker):not(.syncMiniIt
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+
+.albumArtControls .albumArtButton {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 32px;
+  padding: 6px 9px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .fileButton input {

@@ -15,11 +15,9 @@ interface TabEditorProps {
   notes: MidiNote[];
   selectedTrackId: string;
   arrangementKind: "guitar" | "bass";
-  arrangementName?: string;
   duration: number;
   currentTime: number;
   tuning?: number[];
-  capo?: number;
   zoom: number;
   syncPoints?: SyncPoint[];
   tones?: ToneBlock | null;
@@ -47,40 +45,80 @@ type TuningPreset = {
 };
 
 const GUITAR_PRESETS_6: TuningPreset[] = [
-  { id: "gtr6-standard", label: "Standard E A D G B E", pitches: GUITAR_STANDARD_TUNING },
-  { id: "gtr6-drop-d", label: "Drop D D A D G B E", pitches: DROP_D_TUNING },
-  { id: "gtr6-half-step", label: "Half-step down Eb Ab Db Gb Bb Eb", pitches: [39, 44, 49, 54, 58, 63] },
-  { id: "gtr6-d-standard", label: "D standard D G C F A D", pitches: [38, 43, 48, 53, 57, 62] },
-  { id: "gtr6-open-g", label: "Open G D G D G B D", pitches: [38, 43, 50, 55, 59, 62] },
+  { id: "gtr6-standard", label: "Standard", pitches: GUITAR_STANDARD_TUNING },
+  { id: "gtr6-eb-standard", label: "Eb Standard", pitches: [39, 44, 49, 54, 58, 63] },
+  { id: "gtr6-d-standard", label: "D Standard", pitches: [38, 43, 48, 53, 57, 62] },
+  { id: "gtr6-c-sharp-standard", label: "C# Standard", pitches: [37, 42, 47, 52, 56, 61] },
+  { id: "gtr6-c-standard", label: "C Standard", pitches: [36, 41, 46, 51, 55, 60] },
+  { id: "gtr6-drop-d", label: "Drop D", pitches: DROP_D_TUNING },
+  { id: "gtr6-drop-c", label: "Drop C", pitches: [36, 43, 48, 53, 57, 62] },
+  { id: "gtr6-drop-b", label: "Drop B", pitches: [35, 42, 47, 52, 56, 61] },
+  { id: "gtr6-drop-a", label: "Drop A", pitches: [33, 40, 45, 50, 54, 59] },
+  { id: "gtr6-drop-ab", label: "Drop Ab", pitches: [32, 39, 44, 49, 53, 58] },
+  { id: "gtr6-open-g", label: "Open G", pitches: [38, 43, 50, 55, 59, 62] },
+  { id: "gtr6-open-d", label: "Open D", pitches: [38, 45, 50, 54, 57, 62] },
+  { id: "gtr6-dadgad", label: "DADGAD", pitches: [38, 45, 50, 55, 57, 62] },
+  { id: "gtr6-open-e", label: "Open E", pitches: [40, 47, 52, 56, 59, 64] },
 ];
 
 const GUITAR_PRESETS_7: TuningPreset[] = [
-  { id: "gtr7-standard", label: "7-string standard B E A D G B E", pitches: [35, 40, 45, 50, 55, 59, 64] },
-  { id: "gtr7-drop-a", label: "Drop A A E A D G B E", pitches: [33, 40, 45, 50, 55, 59, 64] },
-  { id: "gtr7-a-standard", label: "A standard A D G C F A D", pitches: [33, 38, 43, 48, 53, 57, 62] },
-  { id: "gtr7-half-step", label: "Half-step down Bb Eb Ab Db Gb Bb Eb", pitches: [34, 39, 44, 49, 54, 58, 63] },
+  { id: "gtr7-standard", label: "Standard", pitches: [35, 40, 45, 50, 55, 59, 64] },
+  { id: "gtr7-bb-standard", label: "Bb Standard", pitches: [34, 39, 44, 49, 54, 58, 63] },
+  { id: "gtr7-a-standard", label: "A Standard", pitches: [33, 38, 43, 48, 53, 57, 62] },
+  { id: "gtr7-g-standard", label: "G Standard", pitches: [31, 36, 41, 46, 51, 55, 60] },
+  { id: "gtr7-drop-a", label: "Drop A", pitches: [33, 40, 45, 50, 55, 59, 64] },
+  { id: "gtr7-drop-g", label: "Drop G", pitches: [31, 38, 43, 48, 53, 57, 62] },
+  { id: "gtr7-drop-f-sharp", label: "Drop F#", pitches: [30, 37, 42, 47, 52, 56, 61] },
+];
+
+const GUITAR_PRESETS_8: TuningPreset[] = [
+  { id: "gtr8-standard", label: "Standard", pitches: [30, 35, 40, 45, 50, 55, 59, 64] },
+  { id: "gtr8-drop-e", label: "Drop E", pitches: [28, 35, 40, 45, 50, 55, 59, 64] },
+  { id: "gtr8-drop-a-drop-e", label: "Drop A + Drop E", pitches: [28, 33, 40, 45, 50, 55, 59, 64] },
+  { id: "gtr8-e-standard", label: "E Standard", pitches: [28, 33, 38, 43, 48, 53, 57, 62] },
+  { id: "gtr8-eb-standard", label: "Eb Standard", pitches: [27, 32, 37, 42, 47, 52, 56, 61] },
+  { id: "gtr8-drop-d", label: "Drop D", pitches: [26, 33, 38, 43, 48, 53, 57, 62] },
 ];
 
 const BASS_PRESETS_4: TuningPreset[] = [
-  { id: "bass4-standard", label: "Standard E A D G", pitches: BASS_STANDARD_TUNING },
-  { id: "bass4-drop-d", label: "Drop D D A D G", pitches: [26, 33, 38, 43] },
-  { id: "bass4-eb", label: "Eb standard Eb Ab Db Gb", pitches: [27, 32, 37, 42] },
-  { id: "bass4-d-standard", label: "D standard D G C F", pitches: [26, 31, 36, 41] },
+  { id: "bass4-standard", label: "Standard", pitches: BASS_STANDARD_TUNING },
+  { id: "bass4-eb-standard", label: "Eb Standard", pitches: [27, 32, 37, 42] },
+  { id: "bass4-d-standard", label: "D Standard", pitches: [26, 31, 36, 41] },
+  { id: "bass4-c-sharp-standard", label: "C# Standard", pitches: [25, 30, 35, 40] },
+  { id: "bass4-c-standard", label: "C Standard", pitches: [24, 29, 34, 39] },
+  { id: "bass4-drop-d", label: "Drop D", pitches: [26, 33, 38, 43] },
+  { id: "bass4-drop-c", label: "Drop C", pitches: [24, 31, 36, 41] },
+  { id: "bass4-bead", label: "BEAD", pitches: [23, 28, 33, 38] },
 ];
 
 const BASS_PRESETS_5: TuningPreset[] = [
-  { id: "bass5-standard", label: "5-string standard B E A D G", pitches: BASS_5_TUNING },
-  { id: "bass5-high-c", label: "High C E A D G C", pitches: [28, 33, 38, 43, 48] },
-  { id: "bass5-bb", label: "Bb standard Bb Eb Ab Db Gb", pitches: [22, 27, 32, 37, 42] },
-  { id: "bass5-a-standard", label: "A standard A D G C F", pitches: [21, 26, 31, 36, 41] },
+  { id: "bass5-standard", label: "Standard", pitches: BASS_5_TUNING },
+  { id: "bass5-high-c", label: "High C", pitches: [28, 33, 38, 43, 48] },
+  { id: "bass5-eb-standard", label: "Eb Standard", pitches: [22, 27, 32, 37, 42] },
+  { id: "bass5-d-standard", label: "D Standard", pitches: [21, 26, 31, 36, 41] },
+  { id: "bass5-c-sharp-standard", label: "C# Standard", pitches: [20, 25, 30, 35, 40] },
+  { id: "bass5-c-standard", label: "C Standard", pitches: [19, 24, 29, 34, 39] },
+  { id: "bass5-drop-a", label: "Drop A", pitches: [21, 28, 33, 38, 43] },
+];
+
+const BASS_PRESETS_6: TuningPreset[] = [
+  { id: "bass6-standard", label: "Standard", pitches: [23, 28, 33, 38, 43, 48] },
+  { id: "bass6-eb-standard", label: "Eb Standard", pitches: [22, 27, 32, 37, 42, 47] },
+  { id: "bass6-d-standard", label: "D Standard", pitches: [21, 26, 31, 36, 41, 46] },
+  { id: "bass6-c-sharp-standard", label: "C# Standard", pitches: [20, 25, 30, 35, 40, 45] },
+  { id: "bass6-c-standard", label: "C Standard", pitches: [19, 24, 29, 34, 39, 44] },
 ];
 
 function stringCountOptions(kind: "guitar" | "bass") {
-  return kind === "bass" ? [4, 5] : [6, 7];
+  return kind === "bass" ? [4, 5, 6] : [6, 7, 8];
 }
 
 function tuningPresetsFor(kind: "guitar" | "bass", strings: number): TuningPreset[] {
-  if (kind === "guitar") return strings === 7 ? GUITAR_PRESETS_7 : GUITAR_PRESETS_6;
+  if (kind === "guitar") {
+    if (strings === 8) return GUITAR_PRESETS_8;
+    return strings === 7 ? GUITAR_PRESETS_7 : GUITAR_PRESETS_6;
+  }
+  if (strings === 6) return BASS_PRESETS_6;
   return strings === 5 ? BASS_PRESETS_5 : BASS_PRESETS_4;
 }
 
@@ -120,16 +158,6 @@ function midiToName(pitch: number) {
 
 function getVisualStrings(tuning: number[]) {
   return tuning.map((pitch, index) => ({ string: index + 1, pitch })).reverse();
-}
-
-function getDefaultTuningName(kind: "guitar" | "bass", tuning: number[]) {
-  const joined = tuning.join(",");
-  if (joined === GUITAR_STANDARD_TUNING.join(","))
-    return "Guitar standard E A D G B E";
-  if (joined === DROP_D_TUNING.join(",")) return "Guitar Drop D";
-  if (joined === BASS_STANDARD_TUNING.join(",")) return "Bass 4-string E A D G";
-  if (joined === BASS_5_TUNING.join(",")) return "Bass 5-string B E A D G";
-  return kind === "bass" ? "Bass custom tuning" : "Guitar custom tuning";
 }
 
 function formatTuningNotes(tuning: number[]) {
@@ -182,11 +210,9 @@ export function TabEditor({
   notes,
   selectedTrackId,
   arrangementKind,
-  arrangementName,
   duration,
   currentTime,
   tuning,
-  capo,
   zoom,
   syncPoints = [],
   tones,
@@ -700,15 +726,7 @@ export function TabEditor({
   return (
     <section className="panel tabEditor">
       <div className="panelHeader tabEditorHeader">
-        <div>
-          <h2>Tab editor</h2>
-          <span>
-            {arrangementName ??
-              (arrangementKind === "bass" ? "Bass" : "Guitar")}{" "}
-            · {getDefaultTuningName(arrangementKind, localTuning)}
-            {capo ? ` · capo ${capo}` : ""}
-          </span>
-        </div>
+        <h2>Tab editor</h2>
         <div className="tabToolbar">
           {headerControl}
           <label>
@@ -769,7 +787,7 @@ export function TabEditor({
           </select>
         </label>
         <label className="tabPresetField tabPresetWide">
-          Common tuning
+          Tuning
           <select
             value={selectedTuningPresetId}
             onChange={(event) => {
