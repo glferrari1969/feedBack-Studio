@@ -14,6 +14,14 @@ class ExportArrangementRequest(BaseModel):
     project: dict
 
 
+class DuplicateArrangementRequest(BaseModel):
+    name: str
+
+
+class RenameArrangementRequest(BaseModel):
+    name: str
+
+
 class LyricsTranscriptionRequest(BaseModel):
     project_id: str
     stem_id: str | None = None

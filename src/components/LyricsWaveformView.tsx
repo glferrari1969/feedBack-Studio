@@ -310,6 +310,14 @@ export function LyricsWaveformView({
   }, [currentTime, contentWidth, duration, playing]);
 
   useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || !selectedLine || duration <= 0) return;
+    const lyricX = timeToPx(selectedLine.t);
+    const maxScrollLeft = Math.max(0, contentWidth - scroller.clientWidth);
+    scroller.scrollLeft = clamp(lyricX - scroller.clientWidth / 2, 0, maxScrollLeft);
+  }, [selectedLyricId, selectedLine?.t, contentWidth, duration]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;

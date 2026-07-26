@@ -10,7 +10,7 @@ from typing import Any, Callable
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-from app.api_models import ExportArrangementRequest
+from app.api_models import DuplicateArrangementRequest, ExportArrangementRequest, RenameArrangementRequest
 from app.runtime_state import UPLOADS, projects_by_id
 
 
@@ -297,6 +297,134 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
         updated["workingSloppackPath"] = str(working_path)
         updated["hasUncommittedChanges"] = True
         (source_dir.parent / "project.json").write_text(json.dumps(updated, indent=2, ensure_ascii=False), encoding="utf-8")
+        return updated
+
+    @router.post("/api/projects/{project_id}/arrangements/{arrangement_id}/rename")
+    async def rename_arrangement(
+        project_id: str,
+        arrangement_id: str,
+        request: RenameArrangementRequest,
+    ) -> dict:
+        source_dir = projects_by_id.get(project_id)
+        if not source_dir:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        name = request.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Arrangement name is required")
+
+        manifest, entry, rel = deps.current_arrangement_entry(source_dir, arrangement_id)
+        wire = deps.load_arrangement_wire(source_dir, rel)
+        if not isinstance(wire, dict):
+            raise HTTPException(status_code=400, detail="Arrangement data is invalid")
+
+        entry["name"] = name
+        wire["name"] = name
+        arrangement_rel = rel or f"arrangements/{arrangement_id}.json"
+        entry["file"] = arrangement_rel
+        arrangement_path = source_dir / arrangement_rel
+        arrangement_path.parent.mkdir(parents=True, exist_ok=True)
+        arrangement_path.write_text(
+            json.dumps(wire, separators=(",", ":"), ensure_ascii=False),
+            encoding="utf-8",
+        )
+        deps.write_manifest(source_dir, manifest)
+
+        previous_project = deps.read_json_if_exists(source_dir.parent / "project.json", {})
+        working_path = deps.pack_working_sloppack(
+            source_dir,
+            previous_project if isinstance(previous_project, dict) else None,
+        )
+        updated = deps.build_project(
+            project_id,
+            source_dir,
+            selected_arrangement=arrangement_id,
+        )
+        original_path = deps.project_original_save_path(
+            source_dir,
+            previous_project if isinstance(previous_project, dict) else None,
+        )
+        updated["sloppackPath"] = str(original_path)
+        updated["originalSloppackPath"] = str(original_path)
+        updated["workingSloppackPath"] = str(working_path)
+        updated["hasUncommittedChanges"] = True
+        (source_dir.parent / "project.json").write_text(
+            json.dumps(updated, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return updated
+
+    @router.post("/api/projects/{project_id}/arrangements/{arrangement_id}/duplicate")
+    async def duplicate_arrangement(
+        project_id: str,
+        arrangement_id: str,
+        request: DuplicateArrangementRequest,
+    ) -> dict:
+        source_dir = projects_by_id.get(project_id)
+        if not source_dir:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        name = request.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Arrangement name is required")
+
+        manifest, entry, rel = deps.current_arrangement_entry(source_dir, arrangement_id)
+        arrangements = manifest.get("arrangements")
+        if not isinstance(arrangements, list):
+            raise HTTPException(status_code=400, detail="Project manifest has invalid arrangements list")
+
+        wire = deps.load_arrangement_wire(source_dir, rel)
+        if not isinstance(wire, dict):
+            raise HTTPException(status_code=400, detail="Arrangement data is invalid")
+
+        id_base = "".join(
+            char.lower() if char.isalnum() else "_"
+            for char in name
+        ).strip("_") or "arrangement"
+        duplicate_id = f"{id_base}_{uuid.uuid4().hex[:6]}"
+        duplicate_rel = f"arrangements/{duplicate_id}.json"
+
+        duplicate_wire = json.loads(json.dumps(wire))
+        duplicate_wire["name"] = name
+        if "id" in duplicate_wire:
+            duplicate_wire["id"] = duplicate_id
+        duplicate_path = source_dir / duplicate_rel
+        duplicate_path.parent.mkdir(parents=True, exist_ok=True)
+        duplicate_path.write_text(
+            json.dumps(duplicate_wire, separators=(",", ":"), ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        duplicate_entry = json.loads(json.dumps(entry))
+        duplicate_entry["id"] = duplicate_id
+        duplicate_entry["name"] = name
+        duplicate_entry["file"] = duplicate_rel
+        arrangements.append(duplicate_entry)
+        manifest["arrangements"] = arrangements
+        deps.write_manifest(source_dir, manifest)
+
+        previous_project = deps.read_json_if_exists(source_dir.parent / "project.json", {})
+        working_path = deps.pack_working_sloppack(
+            source_dir,
+            previous_project if isinstance(previous_project, dict) else None,
+        )
+        updated = deps.build_project(
+            project_id,
+            source_dir,
+            selected_arrangement=duplicate_id,
+        )
+        original_path = deps.project_original_save_path(
+            source_dir,
+            previous_project if isinstance(previous_project, dict) else None,
+        )
+        updated["sloppackPath"] = str(original_path)
+        updated["originalSloppackPath"] = str(original_path)
+        updated["workingSloppackPath"] = str(working_path)
+        updated["hasUncommittedChanges"] = True
+        (source_dir.parent / "project.json").write_text(
+            json.dumps(updated, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
         return updated
 
     @router.delete("/api/projects/{project_id}/arrangements/{arrangement_id}")

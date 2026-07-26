@@ -22,6 +22,8 @@ pip install -r requirements.txt
 - `POST /api/projects/{project_id}/commit`: writes the current working project to the original/final feedpak target.
 - `POST /api/projects/{project_id}/arrangements/import`: imports a new MIDI/Guitar Pro arrangement.
 - `POST /api/projects/{project_id}/arrangements/{arrangement_id}/replace`: replaces the current arrangement from MIDI/Guitar Pro.
+- `POST /api/projects/{project_id}/arrangements/{arrangement_id}/duplicate`: duplicates the current arrangement with a new name.
+- `POST /api/projects/{project_id}/arrangements/{arrangement_id}/rename`: renames the current arrangement.
 - `POST /api/projects/{project_id}/arrangements/{arrangement_id}/export`: exports MIDI or MusicXML.
 
 

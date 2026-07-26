@@ -1,4 +1,4 @@
 {
-  "output_name_pattern": "",
+  "output_name_pattern": "<Artist>\\<Album>\\<Artist>-<Album>-<Name>-<Version>",
   "default_output_dir": ""
 }

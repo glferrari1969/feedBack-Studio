@@ -17,11 +17,13 @@ import {
   createStemArrangementJob,
   createStemToneJob,
   deleteArrangement,
+  duplicateArrangement,
   getProcessingJob,
   commitProject,
   discardProject,
   importTextLyricsSync,
   loadArrangement,
+  renameArrangement,
   resolveAssetUrl,
 } from "./api/backend";
 import "./styles.css";
@@ -601,6 +603,8 @@ export default function App() {
   const [committing, setCommitting] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [deletingArrangement, setDeletingArrangement] = useState(false);
+  const [duplicatingArrangement, setDuplicatingArrangement] = useState(false);
+  const [renamingArrangement, setRenamingArrangement] = useState(false);
   const [demucsRunning, setDemucsRunning] = useState(false);
   const [demucsStep, setDemucsStep] = useState("");
   const [demucsProgress, setDemucsProgress] = useState(0);
@@ -1060,6 +1064,34 @@ export default function App() {
       alert(error instanceof Error ? error.message : String(error));
     } finally {
       setDeletingArrangement(false);
+    }
+  };
+
+  const duplicateCurrentArrangement = async (name: string) => {
+    if (!selectedArrangementId) return;
+    setDuplicatingArrangement(true);
+    try {
+      const next = await duplicateArrangement(project.id, selectedArrangementId, name);
+      loadProcessedProject(next);
+      setHasUncommittedChanges(true);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : String(error));
+    } finally {
+      setDuplicatingArrangement(false);
+    }
+  };
+
+  const renameCurrentArrangement = async (name: string) => {
+    if (!selectedArrangementId) return;
+    setRenamingArrangement(true);
+    try {
+      const next = await renameArrangement(project.id, selectedArrangementId, name);
+      loadProcessedProject(next);
+      setHasUncommittedChanges(true);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRenamingArrangement(false);
     }
   };
 
@@ -2006,7 +2038,11 @@ export default function App() {
                 selectedId={selectedArrangementId}
                 onSelect={selectArrangement}
                 onDeleteCurrent={deleteCurrentArrangement}
+                onDuplicateCurrent={duplicateCurrentArrangement}
+                onRenameCurrent={renameCurrentArrangement}
                 deleting={deletingArrangement}
+                duplicating={duplicatingArrangement}
+                renaming={renamingArrangement}
               />
               <AudioSourceSelector
                 stems={project.stems}
@@ -2152,6 +2188,12 @@ export default function App() {
                 arrangements={project.arrangements}
                 selectedId={selectedArrangementId}
                 onSelect={selectArrangement}
+                onDeleteCurrent={deleteCurrentArrangement}
+                onDuplicateCurrent={duplicateCurrentArrangement}
+                onRenameCurrent={renameCurrentArrangement}
+                deleting={deletingArrangement}
+                duplicating={duplicatingArrangement}
+                renaming={renamingArrangement}
               />
               <ArrangementTransferPanel
                 project={project}

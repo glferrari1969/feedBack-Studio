@@ -751,7 +751,7 @@ def build_stem_arrangement_processor(deps: StemArrangementJobsDeps) -> Callable[
                 job.update(status="running", step=f"Building drum arrangement from {resolved_stem_id}", progress=62)
                 wire = _event_notes_to_wire(arrangement_label, "drums", drum_events)
 
-            if target_instrument == "guitar" and transcription_notes:
+            if target_instrument in ("guitar", "bass") and transcription_notes:
                 job.update(status="running", step=f"Matching {resolved_stem_id} tone chain", progress=76)
                 timbre = _analyze_guitar_stem_timbre(
                     stem_audio_path,

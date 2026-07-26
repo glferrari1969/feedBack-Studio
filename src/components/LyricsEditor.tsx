@@ -52,6 +52,11 @@ export function LyricsEditor({ lyrics, lyricsSource, currentTime, duration, sele
       <div className="karaokePreview">
         {active >= 0 ? rows[active].w : 'No lyric at the current position'}
       </div>
+      <div className="lyricsNotationHint">
+        <strong>Suffix reference:</strong>
+        <span><code>+</code> ends the current lyric line.</span>
+        <span><code>-</code> joins the current syllable to the next one.</span>
+      </div>
       <div className="lyricsTable">
         <div className="lyricsRow lyricsHeader">
           <span>Time</span><span>Duration</span><span>Lyric</span><span></span>

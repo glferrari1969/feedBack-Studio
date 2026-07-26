@@ -243,6 +243,34 @@ export async function deleteArrangement(projectId: string, arrangementId: string
   return await response.json() as ProjectState;
 }
 
+export async function duplicateArrangement(
+  projectId: string,
+  arrangementId: string,
+  name: string,
+): Promise<ProjectState> {
+  const response = await fetch(`${API_BASE}/api/projects/${projectId}/arrangements/${arrangementId}/duplicate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return await response.json() as ProjectState;
+}
+
+export async function renameArrangement(
+  projectId: string,
+  arrangementId: string,
+  name: string,
+): Promise<ProjectState> {
+  const response = await fetch(`${API_BASE}/api/projects/${projectId}/arrangements/${arrangementId}/rename`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return await response.json() as ProjectState;
+}
+
 export async function createLyricsTranscriptionJob(projectId: string, stemId?: string, modelSize = 'medium', language = '', minWordScore = 0.35): Promise<string> {
   const response = await fetch(`${API_BASE}/api/jobs/lyrics/transcribe`, {
     method: 'POST',
