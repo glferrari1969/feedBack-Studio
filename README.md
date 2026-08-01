@@ -4,6 +4,11 @@
 
 <h1 align="center">feedBack Studio</h1>
 
+<p align="center">
+  <a href="https://github.com/glferrari1969/feedBack-Studio/releases/download/v0.1.0-alpha.3/feedBack-Studio-0.1.0-alpha.3-Windows-x64-Setup.exe"><strong>Download installer Windows - v0.1.0-alpha.3</strong></a><br />
+  <sub>Installer alfa x64 | nessuna installazione manuale di Python o Node.js</sub>
+</p>
+
 feedBack Studio is a local web editor for feedpak projects, Rocksmith PSARC imports, MP3/audio-to-feedpak conversion, tablature editing, score viewing, tone chains, stems, and audio synchronization.
 
 > Disclaimer: convert only Custom DLC that you personally own. Official Rocksmith DLC is Ubisoft property and is not permitted for conversion.
@@ -20,7 +25,7 @@ This builds the frontend, starts the backend, and opens feedBack Studio in a nat
 
 ### Windows alpha installer
 
-Pre-release Windows installers are published on the repository's **Releases** page. Download the file named `feedBack-Studio-<version>-Windows-x64-Setup.exe`, run it, and launch **feedBack Studio** from the Start menu. The installer is per-user, does not require Python or Node.js to be installed, and includes the frontend, backend, FFmpeg, and vgmstream.
+Pre-release Windows installers are published on the repository's [Releases page](https://github.com/glferrari1969/feedBack-Studio/releases). The current build can be downloaded directly as [feedBack Studio v0.1.0-alpha.3 for Windows x64](https://github.com/glferrari1969/feedBack-Studio/releases/download/v0.1.0-alpha.3/feedBack-Studio-0.1.0-alpha.3-Windows-x64-Setup.exe). Run it and launch **feedBack Studio** from the Start menu. The installer is per-user, does not require Python or Node.js to be installed, and includes the frontend, backend, FFmpeg, and vgmstream.
 
 The installer offers an optional **AI stem separation and lyric transcription** component. Selecting it downloads a private Python runtime and the large AI dependencies during setup, without requiring manual commands or a system-wide Python installation. AI models are still downloaded the first time the corresponding feature is used. The normal editors and converters remain available when this optional component is skipped.
 
