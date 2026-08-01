@@ -1,27 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="feedBack Studio professional audio icon">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="feedBack Studio professional audio icon">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#07111f" />
-      <stop offset="50%" stop-color="#123a7a" />
+      <stop offset="60%" stop-color="#123a7a" />
       <stop offset="100%" stop-color="#6d28d9" />
     </linearGradient>
-    <linearGradient id="metal" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#f8fafc" />
-      <stop offset="100%" stop-color="#cbd5e1" />
-    </linearGradient>
     <filter id="mark-shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#020617" flood-opacity="0.34" />
+      <feDropShadow dx="0" dy="2.5" stdDeviation="2.5" flood-color="#020617" flood-opacity="0.34" />
     </filter>
   </defs>
-  <rect x="38" y="38" width="436" height="436" rx="122" fill="url(#bg)" />
+  <rect x="18" y="18" width="220" height="220" rx="56" fill="url(#bg)" />
   <!-- Mixer panel, offset toward the upper-left corner -->
-  <g transform="translate(-24 -24)">
-    <rect x="126" y="124" width="260" height="264" rx="44" fill="#0f172a" opacity="0.88" />
-    <rect x="154" y="152" width="204" height="208" rx="32" fill="url(#metal)" />
-    <rect x="184" y="182" width="22" height="112" rx="11" fill="#111827" />
-    <rect x="226" y="166" width="22" height="128" rx="11" fill="#2563eb" />
-    <rect x="268" y="192" width="22" height="102" rx="11" fill="#7c3aed" />
-    <rect x="184" y="306" width="106" height="12" rx="6" fill="#64748b" />
+  <g transform="translate(-12 -12)">
+    <rect x="64" y="58" width="128" height="140" rx="24" fill="#0f172a" opacity="0.94" />
+    <rect x="78" y="72" width="100" height="112" rx="18" fill="#f8fafc" />
+    <rect x="92" y="90" width="14" height="54" rx="7" fill="#111827" />
+    <rect x="116" y="80" width="14" height="64" rx="7" fill="#2563eb" />
+    <rect x="140" y="96" width="14" height="48" rx="7" fill="#7c3aed" />
+    <rect x="92" y="150" width="62" height="8" rx="4" fill="#64748b" />
   </g>
 
   <!-- Stylized central mark from the feedBack wordmark -->
@@ -29,7 +25,7 @@
     d="M230 174 304 208 270 249 329 283 255 339 269 300 245 272 237 317 182 333 193 280 229 277Z"
     fill="#22d3ee"
     filter="url(#mark-shadow)"
-    transform="translate(94 94) translate(255 257) scale(1.5) translate(-255 -257)"
+    transform="translate(47 47) scale(.5) translate(255 257) scale(1.5) translate(-255 -257)"
   />
 
 </svg>

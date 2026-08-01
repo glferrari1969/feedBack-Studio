@@ -1,4 +1,8 @@
-# feedBack Studio
+<p align="center">
+  <img src="public/favicon.svg" alt="feedBack Studio" width="128" height="128" />
+</p>
+
+<h1 align="center">feedBack Studio</h1>
 
 feedBack Studio is a local web editor for feedpak projects, Rocksmith PSARC imports, MP3/audio-to-feedpak conversion, tablature editing, score viewing, tone chains, stems, and audio synchronization.
 
