@@ -180,7 +180,7 @@ export async function listGpTracks(file: File): Promise<GpTrackInfo[]> {
 export async function importArrangement(
   projectId: string,
   file: File,
-  instrument: 'guitar' | 'bass',
+  instrument: 'guitar' | 'bass' | 'keys' | 'drums',
   name: string,
   gpTrackIndex?: number,
 ): Promise<ProjectState> {
@@ -197,16 +197,128 @@ export async function importArrangement(
 }
 
 export async function exportArrangement(project: ProjectState, arrangementId: string, format: 'midi' | 'musicxml'): Promise<{ blob: Blob; filename: string }> {
-  const response = await fetch(`${API_BASE}/api/projects/${project.id}/arrangements/${arrangementId}/export`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ format, project })
-  });
+  // Keep export payload minimal to avoid UI stalls on very large project states.
+  const arrangement = (project.arrangements || []).find((item) => String(item.id) === String(arrangementId));
+  const notes = (project.notes || [])
+    .filter((note) => String(note.trackId) === String(arrangementId))
+    .map((note) => ({
+      trackId: note.trackId,
+      pitch: note.pitch,
+      start: note.start,
+      duration: note.duration,
+      velocity: note.velocity,
+      string: note.string,
+      fret: note.fret,
+      techniques: note.techniques,
+    }));
+  const exportProject = {
+    id: project.id,
+    title: project.title,
+    artist: project.artist,
+    bpm: project.bpm,
+    meter: project.meter,
+    arrangementType: arrangement?.type,
+    arrangementTuning: arrangement?.tuning,
+    arrangementCapo: arrangement?.capo,
+    selectedArrangementId: arrangementId,
+    notes,
+  };
+
+  const controller = new AbortController();
+  const timeoutMs = 45000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/api/projects/${project.id}/arrangements/${arrangementId}/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format, project: exportProject }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`Export timed out after ${Math.round(timeoutMs / 1000)}s.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   if (!response.ok) throw new Error(await response.text());
   const disposition = response.headers.get('Content-Disposition') ?? '';
   const match = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
   const filename = decodeURIComponent(match?.[1] || match?.[2] || (format === 'midi' ? 'arrangement.mid' : 'arrangement.musicxml'));
   return { blob: await response.blob(), filename };
+}
+
+export async function exportNotationPdf(
+  projectId: string,
+  arrangementId: string,
+  payload: {
+    title: string;
+    artist?: string;
+    album?: string;
+    year?: string;
+    arrangement_name?: string;
+    bpm?: number;
+    meter?: [number, number];
+    header_png_data_url?: string;
+    score_svgs: string[];
+    open_after_export?: boolean;
+  },
+): Promise<{
+  filename: string;
+  path: string;
+  opened: boolean;
+  openError?: string;
+  debug?: {
+    marginPt?: number;
+    printableWidthPt?: number;
+    printableHeightPt?: number;
+    pages?: Array<{
+      pageIndex?: number;
+      availableHeightPt?: number;
+      scale?: number;
+      firstPageLimitSrc?: number;
+      bandCount?: number;
+      groupCount?: number;
+      segmentCount?: number;
+      fallback?: string;
+      segmentHeightsSrc?: number[];
+      groupHeights?: number[];
+    }>;
+  };
+}> {
+  const response = await fetch(`${API_BASE}/api/projects/${projectId}/arrangements/${arrangementId}/notation-pdf`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return await response.json() as {
+    filename: string;
+    path: string;
+    opened: boolean;
+    openError?: string;
+    debug?: {
+      marginPt?: number;
+      printableWidthPt?: number;
+      printableHeightPt?: number;
+      pages?: Array<{
+        pageIndex?: number;
+        availableHeightPt?: number;
+        scale?: number;
+        firstPageLimitSrc?: number;
+        bandCount?: number;
+        groupCount?: number;
+        segmentCount?: number;
+        fallback?: string;
+        segmentHeightsSrc?: number[];
+        groupHeights?: number[];
+      }>;
+    };
+  };
 }
 
 export async function uploadCoverArt(projectId: string, file: File): Promise<{ coverUrl: string; coverPath: string }> {
@@ -221,7 +333,7 @@ export async function replaceArrangement(
   projectId: string,
   arrangementId: string,
   file: File,
-  instrument: 'guitar' | 'bass',
+  instrument: 'guitar' | 'bass' | 'keys' | 'drums',
   gpTrackIndex?: number,
 ): Promise<ProjectState> {
   const form = new FormData();

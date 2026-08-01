@@ -14,6 +14,19 @@ class ExportArrangementRequest(BaseModel):
     project: dict
 
 
+class NotationPdfExportRequest(BaseModel):
+    title: str
+    artist: str | None = None
+    album: str | None = None
+    year: str | None = None
+    arrangement_name: str | None = None
+    bpm: float | None = None
+    meter: list[int] | None = None
+    header_png_data_url: str | None = None
+    score_svgs: list[str]
+    open_after_export: bool = True
+
+
 class DuplicateArrangementRequest(BaseModel):
     name: str
 

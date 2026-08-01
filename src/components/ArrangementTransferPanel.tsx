@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ArrangementInfo, ProjectState } from '../types/music';
 import { exportArrangement, listGpTracks, replaceArrangement, type GpTrackInfo } from '../api/backend';
 
@@ -6,6 +6,7 @@ interface Props {
   project: ProjectState;
   arrangement?: ArrangementInfo;
   onProjectReady: (project: ProjectState) => void;
+  strictArrangement?: boolean;
 }
 
 const GP_FILE_RE = /\.(gp5|gp4|gp3|gpx|gp)$/i;
@@ -15,7 +16,7 @@ function isGpFile(file: File | null): boolean {
   return GP_FILE_RE.test(file.name || '');
 }
 
-function chooseDefaultTrackIndex(tracks: GpTrackInfo[], instrument: 'guitar' | 'bass'): number {
+function chooseDefaultTrackIndex(tracks: GpTrackInfo[], instrument: 'guitar' | 'bass' | 'keys'): number {
   if (!tracks.length) return -1;
   const bassByName = (track: GpTrackInfo) => /bass/i.test(track.name || '');
   const preferred = instrument === 'bass'
@@ -31,7 +32,9 @@ function trackOptionLabel(track: GpTrackInfo): string {
   return `#${track.index + 1} ${track.name} (${hints.join(', ')})`;
 }
 
-function inferInstrument(arrangement?: ArrangementInfo): 'guitar' | 'bass' {
+function inferInstrument(arrangement?: ArrangementInfo): 'guitar' | 'bass' | 'keys' | 'drums' {
+  if (arrangement?.type === 'drums') return 'drums';
+  if (arrangement?.type === 'keys' || arrangement?.type === 'piano') return 'keys';
   if (arrangement?.type === 'bass') return 'bass';
   if (arrangement?.tuning?.length === 4 || arrangement?.tuning?.length === 5) return 'bass';
   return 'guitar';
@@ -48,15 +51,23 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export function ArrangementTransferPanel({ project, arrangement, onProjectReady }: Props) {
+export function ArrangementTransferPanel({
+  project,
+  arrangement,
+  onProjectReady,
+  strictArrangement = false,
+}: Props) {
   const [replaceFile, setReplaceFile] = useState<File | null>(null);
   const [gpTracks, setGpTracks] = useState<GpTrackInfo[]>([]);
   const [gpTrackIndex, setGpTrackIndex] = useState<number>(-1);
   const [tracksBusy, setTracksBusy] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const arrangementId = arrangement?.id ?? project.selectedArrangementId;
+  const arrangementId = strictArrangement
+    ? arrangement?.id
+    : arrangement?.id ?? project.selectedArrangementId;
   const disabled = !arrangementId;
   const targetInstrument = inferInstrument(arrangement);
 
@@ -76,6 +87,10 @@ export function ArrangementTransferPanel({ project, arrangement, onProjectReady 
 
   const replaceCurrent = async () => {
     if (!arrangementId || !replaceFile) return;
+    if (targetInstrument === 'drums' && isGpFile(replaceFile)) {
+      setError('Drum replace from Guitar Pro is not supported yet. Use a MIDI file with drum channel data.');
+      return;
+    }
     if (isGpFile(replaceFile) && gpTrackIndex < 0) {
       setError('Select a GP track before replacing.');
       return;
@@ -108,6 +123,10 @@ export function ArrangementTransferPanel({ project, arrangement, onProjectReady 
     setGpTracks([]);
     setGpTrackIndex(-1);
     if (!nextFile || !isGpFile(nextFile)) return;
+    if (targetInstrument === 'drums') {
+      setError('Drum replace from Guitar Pro is not supported yet. Use a MIDI file with drum channel data.');
+      return;
+    }
     setTracksBusy(true);
     setError(null);
     try {
@@ -140,11 +159,23 @@ export function ArrangementTransferPanel({ project, arrangement, onProjectReady 
       </div>
       <label className="field">
         <span>Replace current from MIDI or Guitar Pro</span>
-        <input
-          type="file"
-          accept=".mid,.midi,.gp5,.gp4,.gp3,.gpx,.gp"
-          onChange={(event) => { void onReplaceFileChange(event.target.files?.[0] ?? null); }}
-        />
+        <div className="filePickerRow">
+          <input
+            ref={replaceFileInputRef}
+            className="hiddenInput"
+            type="file"
+            accept=".mid,.midi,.gp5,.gp4,.gp3,.gpx,.gp"
+            onChange={(event) => { void onReplaceFileChange(event.target.files?.[0] ?? null); }}
+          />
+          <button
+            type="button"
+            className="secondaryButton filePickerButton"
+            onClick={() => replaceFileInputRef.current?.click()}
+          >
+            Choose file
+          </button>
+          <span className="filePickerName">{replaceFile?.name ?? 'No file selected'}</span>
+        </div>
       </label>
       {isGpFile(replaceFile) ? (
         <label className="field">

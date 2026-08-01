@@ -1,18 +1,27 @@
 @echo off
-cd /d "%~dp0backend"
+setlocal
+set "PROJECT_ROOT=%~dp0"
+set "BACKEND_DIR=%PROJECT_ROOT%backend"
+
+cd /d "%BACKEND_DIR%"
 
 if exist "%cd%\tools\vgmstream\vgmstream-cli.exe" set "VGMSTREAM_CLI=%cd%\tools\vgmstream\vgmstream-cli.exe"
-if not exist ".venv\Scripts\python.exe" (
-  py -3.11 -m venv .venv
+if not exist "%BACKEND_DIR%\.venv\Scripts\python.exe" (
+  echo Creating Python virtual environment...
+  py -3.11 -m venv "%BACKEND_DIR%\.venv"
   if errorlevel 1 goto :end
 )
-set "VENV_PYTHON=.venv\Scripts\python.exe"
+set "VENV_PYTHON=%BACKEND_DIR%\.venv\Scripts\python.exe"
+
+echo Installing backend dependencies...
 "%VENV_PYTHON%" -m pip install --upgrade pip
 if errorlevel 1 goto :end
-"%VENV_PYTHON%" -m pip install -r requirements.txt
+"%VENV_PYTHON%" -m pip install -r "%BACKEND_DIR%\requirements.txt"
 if errorlevel 1 goto :end
-"%VENV_PYTHON%" setup_tools.py
+"%VENV_PYTHON%" "%BACKEND_DIR%\setup_tools.py"
 if errorlevel 1 goto :end
+
+echo Starting backend server...
 "%VENV_PYTHON%" -m uvicorn app.main:app --reload --port 8000
 
 :end

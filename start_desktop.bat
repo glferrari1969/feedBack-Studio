@@ -1,30 +1,37 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+set "PROJECT_ROOT=%~dp0"
+set "BACKEND_DIR=%PROJECT_ROOT%backend"
+
+cd /d "%PROJECT_ROOT%"
+
+echo [1/3] Checking frontend dependencies...
+if not exist "%PROJECT_ROOT%node_modules" (
+  echo Installing frontend dependencies...
+  call npm install --package-lock=false --no-audit --no-fund
+  if errorlevel 1 if not exist "%PROJECT_ROOT%dist\index.html" goto :end
+)
 
 echo [1/3] Building frontend...
-if not exist "%~dp0node_modules" (
-  call npm install --no-audit --no-fund
-  if errorlevel 1 if not exist "%~dp0dist\index.html" goto :end
-)
-if not exist "%~dp0dist\index.html" (
-  call npm run build
-  if errorlevel 1 goto :end
-)
+call npm run build
+if errorlevel 1 goto :end
 
 echo [2/3] Preparing backend runtime...
-cd /d "%~dp0backend"
+cd /d "%BACKEND_DIR%"
 if exist "%cd%\tools\vgmstream\vgmstream-cli.exe" set "VGMSTREAM_CLI=%cd%\tools\vgmstream\vgmstream-cli.exe"
-if not exist ".venv\Scripts\python.exe" (
-  py -3.11 -m venv .venv
+if not exist "%BACKEND_DIR%\.venv\Scripts\python.exe" (
+  echo Creating Python virtual environment...
+  py -3.11 -m venv "%BACKEND_DIR%\.venv"
   if errorlevel 1 goto :end
 )
-set "VENV_PYTHON=.venv\Scripts\python.exe"
+set "VENV_PYTHON=%BACKEND_DIR%\.venv\Scripts\python.exe"
+
+echo Installing backend dependencies...
 "%VENV_PYTHON%" -m pip install --upgrade pip
 if errorlevel 1 goto :end
-"%VENV_PYTHON%" -m pip install -r requirements.txt
+"%VENV_PYTHON%" -m pip install -r "%BACKEND_DIR%\requirements.txt"
 if errorlevel 1 goto :end
-"%VENV_PYTHON%" setup_tools.py
+"%VENV_PYTHON%" "%BACKEND_DIR%\setup_tools.py"
 if errorlevel 1 goto :end
 
 echo [3/3] Launching desktop app...

@@ -38,6 +38,9 @@ const WaveformView = lazy(() =>
 const PianoRoll = lazy(() =>
   import("./components/PianoRoll").then((module) => ({ default: module.PianoRoll })),
 );
+const DrumLaneEditor = lazy(() =>
+  import("./components/DrumLaneEditor").then((module) => ({ default: module.DrumLaneEditor })),
+);
 const TabEditor = lazy(() =>
   import("./components/TabEditor").then((module) => ({ default: module.TabEditor })),
 );
@@ -77,6 +80,9 @@ const ToneEditor = lazy(() =>
 const ToneChainStrip = lazy(() =>
   import("./components/ToneChainStrip").then((module) => ({ default: module.ToneChainStrip })),
 );
+const NotationPanel = lazy(() =>
+  import("./components/NotationPanel").then((module) => ({ default: module.NotationPanel })),
+);
 
 function LoadingPanel({ label = "Loading..." }: { label?: string }) {
   return <div className="panel lazyPanel"><span className="miniMeta">{label}</span></div>;
@@ -88,8 +94,19 @@ function inferArrangementKind(
   if (!arrangement) return null;
   if (arrangement.type === "guitar" || arrangement.type === "bass")
     return arrangement.type;
+  if (
+    arrangement.type === "keys" ||
+    arrangement.type === "piano" ||
+    arrangement.type === "drums" ||
+    arrangement.type === "vocals"
+  ) {
+    return null;
+  }
   const text =
     `${arrangement.id} ${arrangement.name} ${arrangement.file ?? ""}`.toLowerCase();
+  if (["piano", "keys", "keyboard"].some((word) => text.includes(word))) {
+    return null;
+  }
   if (text.includes("bass")) return "bass";
   if (
     ["lead", "rhythm", "combo", "guitar", "chitarra"].some((word) =>
@@ -102,6 +119,14 @@ function inferArrangementKind(
   if (arrangement.tuning?.length === 6 || arrangement.tuning?.length === 7)
     return "guitar";
   return null;
+}
+
+function isDrumArrangement(arrangement?: ArrangementInfo): boolean {
+  if (!arrangement) return false;
+  if (arrangement.type === "drums") return true;
+  if (arrangement.id === "__drum_tab__") return true;
+  const text = `${arrangement.id} ${arrangement.name} ${arrangement.file ?? ""}`.toLowerCase();
+  return text.includes("drum") || text.includes("percussion");
 }
 
 function preferredStemId(
@@ -120,6 +145,27 @@ function preferredStemId(
       (stem) => stem.kind === arrangementKind || stem.id === arrangementKind,
     );
     if (matching) return matching.id;
+  }
+  if (arrangement) {
+    const text =
+      `${arrangement.id} ${arrangement.name} ${arrangement.file ?? ""}`.toLowerCase();
+    const isKeysArrangement =
+      arrangement.type === "keys" ||
+      arrangement.type === "piano" ||
+      ["piano", "keys", "keyboard"].some((word) => text.includes(word));
+    if (isKeysArrangement) {
+      const keysStem = stems.find((stem) => {
+        const stemText = `${stem.id} ${stem.name}`.toLowerCase();
+        return (
+          stem.kind === "piano" ||
+          stem.id === "piano" ||
+          stem.id === "keys" ||
+          stemText.includes("piano") ||
+          stemText.includes("keys")
+        );
+      });
+      if (keysStem) return keysStem.id;
+    }
   }
   return (
     stems.find((stem) => stem.kind === "mix" || stem.kind === "full")?.id ??
@@ -594,6 +640,44 @@ type ActiveMidiVoice = {
   nodes: AudioNode[];
 };
 
+type EditorUndoSnapshot = {
+  notes: MidiNote[];
+  syncPoints: SyncPoint[];
+  selectedSyncPointId: string | null;
+};
+
+type EditorUndoKind =
+  | "note-change"
+  | "note-add"
+  | "note-delete"
+  | "sync-change"
+  | "sync-add";
+
+const EDITOR_UNDO_LIMIT = 160;
+const EDITOR_NOTE_CHANGE_MERGE_MS = 220;
+
+function cloneMidiNotesForUndo(notes: MidiNote[]): MidiNote[] {
+  return notes.map((note) => ({
+    ...note,
+    techniques: note.techniques ? { ...note.techniques } : {},
+  }));
+}
+
+function cloneSyncPointsForUndo(syncPoints: SyncPoint[]): SyncPoint[] {
+  return syncPoints.map((point) => ({ ...point }));
+}
+
+function isTextEditingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    target.isContentEditable ||
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT"
+  );
+}
+
 export default function App() {
   const [project, setProject] = useState<ProjectState>(demoProject);
   const [playing, setPlaying] = useState(false);
@@ -626,11 +710,12 @@ export default function App() {
   );
   const [waveformZoom, setWaveformZoom] = useState(1.4);
   const [tabZoom, setTabZoom] = useState(1.4);
+  const [drumZoom, setDrumZoom] = useState(2.5);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [selectedSyncPointId, setSelectedSyncPointId] = useState<string | null>(
     null,
   );
-  type Page = "home" | "metadata" | "audio" | "arrangements" | "lyrics" | "tones";
+  type Page = "home" | "metadata" | "audio" | "arrangements" | "drums" | "notation" | "lyrics" | "tones";
   const [activePage, setActivePage] = useState<Page>("home");
   const previousPageRef = useRef<Page>("home");
   const [hasProjectLoaded, setHasProjectLoaded] = useState(false);
@@ -644,11 +729,20 @@ export default function App() {
   const [midiPreviewEnabled, setMidiPreviewEnabled] = useState(false);
   const [midiPreviewVolume, setMidiPreviewVolume] = useState(0.22);
   const [midiPreviewPreset, setMidiPreviewPreset] = useState("auto");
+  const [canEditorUndo, setCanEditorUndo] = useState(false);
   const midiContextRef = useRef<AudioContext | null>(null);
   const midiMasterGainRef = useRef<GainNode | null>(null);
   const midiVoicesRef = useRef<ActiveMidiVoice[]>([]);
   const midiLastTimeRef = useRef<number | null>(null);
   const midiNoteIndexRef = useRef(0);
+  const editorUndoStackRef = useRef<EditorUndoSnapshot[]>([]);
+  const lastEditorUndoMetaRef = useRef<{
+    kind: EditorUndoKind;
+    at: number;
+    sourceNotes: MidiNote[];
+    sourceSyncPoints: SyncPoint[];
+    sourceSelectedSyncPointId: string | null;
+  } | null>(null);
 
   const selectedArrangementId =
     project.selectedArrangementId ?? project.arrangements[0]?.id ?? "mix";
@@ -658,14 +752,44 @@ export default function App() {
     );
   }, [project.arrangements, selectedArrangementId]);
 
+  const melodicArrangements = useMemo(
+    () => project.arrangements.filter((arrangement) => !isDrumArrangement(arrangement)),
+    [project.arrangements],
+  );
+
+  const drumArrangements = useMemo(
+    () => project.arrangements.filter((arrangement) => isDrumArrangement(arrangement)),
+    [project.arrangements],
+  );
+
+  const selectedMelodicArrangement = useMemo(() => {
+    if (!melodicArrangements.length) return undefined;
+    return (
+      melodicArrangements.find((arrangement) => arrangement.id === selectedArrangementId) ??
+      melodicArrangements[0]
+    );
+  }, [melodicArrangements, selectedArrangementId]);
+
+  const selectedDrumArrangement = useMemo(() => {
+    if (!drumArrangements.length) return undefined;
+    return (
+      drumArrangements.find((arrangement) => arrangement.id === selectedArrangementId) ??
+      drumArrangements[0]
+    );
+  }, [drumArrangements, selectedArrangementId]);
+
+  const selectedMelodicArrangementId = selectedMelodicArrangement?.id ?? "";
+  const selectedDrumArrangementId = selectedDrumArrangement?.id ?? "";
+
   const editorKind = inferArrangementKind(selectedArrangement);
+  const melodicEditorKind = inferArrangementKind(selectedMelodicArrangement);
 
   const arrangementNotes = useMemo(
     () =>
       project.notes
-        .filter((note) => note.trackId === selectedArrangementId)
+        .filter((note) => note.trackId === selectedMelodicArrangementId)
         .sort((a, b) => a.start - b.start),
-    [project.notes, selectedArrangementId],
+    [project.notes, selectedMelodicArrangementId],
   );
 
   const selectedStem = useMemo(() => {
@@ -701,11 +825,11 @@ export default function App() {
     () =>
       resolveMidiPreviewPreset(
         midiPreviewPreset,
-        editorKind,
-        selectedArrangement?.tones,
+        melodicEditorKind,
+        selectedMelodicArrangement?.tones,
         currentTime,
       ),
-    [currentTime, editorKind, midiPreviewPreset, selectedArrangement?.tones],
+    [currentTime, melodicEditorKind, midiPreviewPreset, selectedMelodicArrangement?.tones],
   );
 
   useEffect(() => {
@@ -1029,6 +1153,118 @@ export default function App() {
     }
   };
 
+  const clearEditorUndoHistory = () => {
+    editorUndoStackRef.current = [];
+    lastEditorUndoMetaRef.current = null;
+    setCanEditorUndo(false);
+  };
+
+  const makeEditorUndoSnapshot = (
+    notes: MidiNote[],
+    syncPoints: SyncPoint[],
+    selectedId: string | null,
+  ): EditorUndoSnapshot => ({
+    notes: cloneMidiNotesForUndo(notes),
+    syncPoints: cloneSyncPointsForUndo(syncPoints),
+    selectedSyncPointId: selectedId,
+  });
+
+  const recordEditorUndoSnapshot = (kind: EditorUndoKind) => {
+    if (activePage !== "arrangements" && activePage !== "drums") return;
+
+    const sourceNotes = project.notes;
+    const sourceSyncPoints = project.syncPoints;
+    const sourceSelectedSyncPointId = selectedSyncPointId;
+    const now = Date.now();
+    const previousMeta = lastEditorUndoMetaRef.current;
+
+    const sameSourceState =
+      previousMeta &&
+      previousMeta.sourceNotes === sourceNotes &&
+      previousMeta.sourceSyncPoints === sourceSyncPoints &&
+      previousMeta.sourceSelectedSyncPointId === sourceSelectedSyncPointId;
+
+    if (sameSourceState) {
+      lastEditorUndoMetaRef.current = {
+        kind,
+        at: now,
+        sourceNotes,
+        sourceSyncPoints,
+        sourceSelectedSyncPointId,
+      };
+      return;
+    }
+
+    const shouldMergeContinuousNoteDrag =
+      kind === "note-change" &&
+      previousMeta?.kind === "note-change" &&
+      now - previousMeta.at <= EDITOR_NOTE_CHANGE_MERGE_MS;
+
+    if (shouldMergeContinuousNoteDrag) {
+      lastEditorUndoMetaRef.current = {
+        kind,
+        at: now,
+        sourceNotes,
+        sourceSyncPoints,
+        sourceSelectedSyncPointId,
+      };
+      return;
+    }
+
+    const undoStack = editorUndoStackRef.current;
+    undoStack.push(makeEditorUndoSnapshot(sourceNotes, sourceSyncPoints, sourceSelectedSyncPointId));
+    if (undoStack.length > EDITOR_UNDO_LIMIT) {
+      undoStack.shift();
+    }
+
+    lastEditorUndoMetaRef.current = {
+      kind,
+      at: now,
+      sourceNotes,
+      sourceSyncPoints,
+      sourceSelectedSyncPointId,
+    };
+    setCanEditorUndo(undoStack.length > 0);
+  };
+
+  const undoEditorChange = () => {
+    const undoStack = editorUndoStackRef.current;
+    const snapshot = undoStack.pop();
+    if (!snapshot) return;
+
+    setProject((prev) => ({
+      ...prev,
+      hasUncommittedChanges: true,
+      notes: cloneMidiNotesForUndo(snapshot.notes),
+      syncPoints: cloneSyncPointsForUndo(snapshot.syncPoints),
+    }));
+    setSelectedSyncPointId(snapshot.selectedSyncPointId);
+    setHasUncommittedChanges(true);
+    lastEditorUndoMetaRef.current = null;
+    setCanEditorUndo(undoStack.length > 0);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const editorPageActive = activePage === "arrangements" || activePage === "drums";
+      if (!editorPageActive) return;
+      if (isTextEditingTarget(event.target)) return;
+      if (event.shiftKey) return;
+
+      const isUndoShortcut =
+        (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z";
+      if (!isUndoShortcut || !canEditorUndo) return;
+
+      event.preventDefault();
+      undoEditorChange();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activePage, canEditorUndo]);
+
   const loadProcessedProject = (nextProject: ProjectState, nextPage?: Page) => {
     const arrangement =
       nextProject.arrangements.find(
@@ -1040,6 +1276,7 @@ export default function App() {
     setSelectedStemId(preferredStemId(nextProject, arrangement));
     setCurrentTime(0);
     setPlaying(false);
+    clearEditorUndoHistory();
     if (nextPage) setActivePage(nextPage);
   };
 
@@ -1053,11 +1290,47 @@ export default function App() {
     }
   };
 
-  const deleteCurrentArrangement = async () => {
-    if (!selectedArrangementId) return;
+  useEffect(() => {
+    const targetArrangementId =
+      activePage === "drums"
+        ? selectedDrumArrangementId
+        : activePage === "arrangements"
+          ? selectedMelodicArrangementId
+          : "";
+    if (!targetArrangementId || targetArrangementId === selectedArrangementId) {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const next = await loadArrangement(project.id, targetArrangementId);
+        if (!cancelled) {
+          loadProcessedProject(next);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          alert(error instanceof Error ? error.message : String(error));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activePage,
+    project.id,
+    selectedArrangementId,
+    selectedDrumArrangementId,
+    selectedMelodicArrangementId,
+  ]);
+
+  const deleteArrangementById = async (arrangementId: string) => {
+    if (!arrangementId) return;
     setDeletingArrangement(true);
     try {
-      const next = await deleteArrangement(project.id, selectedArrangementId);
+      const next = await deleteArrangement(project.id, arrangementId);
       loadProcessedProject(next);
       setHasUncommittedChanges(true);
     } catch (error) {
@@ -1067,11 +1340,11 @@ export default function App() {
     }
   };
 
-  const duplicateCurrentArrangement = async (name: string) => {
-    if (!selectedArrangementId) return;
+  const duplicateArrangementById = async (arrangementId: string, name: string) => {
+    if (!arrangementId) return;
     setDuplicatingArrangement(true);
     try {
-      const next = await duplicateArrangement(project.id, selectedArrangementId, name);
+      const next = await duplicateArrangement(project.id, arrangementId, name);
       loadProcessedProject(next);
       setHasUncommittedChanges(true);
     } catch (error) {
@@ -1081,11 +1354,11 @@ export default function App() {
     }
   };
 
-  const renameCurrentArrangement = async (name: string) => {
-    if (!selectedArrangementId) return;
+  const renameArrangementById = async (arrangementId: string, name: string) => {
+    if (!arrangementId) return;
     setRenamingArrangement(true);
     try {
-      const next = await renameArrangement(project.id, selectedArrangementId, name);
+      const next = await renameArrangement(project.id, arrangementId, name);
       loadProcessedProject(next);
       setHasUncommittedChanges(true);
     } catch (error) {
@@ -1093,6 +1366,21 @@ export default function App() {
     } finally {
       setRenamingArrangement(false);
     }
+  };
+
+  const deleteCurrentArrangement = async () => {
+    if (!selectedArrangementId) return;
+    await deleteArrangementById(selectedArrangementId);
+  };
+
+  const duplicateCurrentArrangement = async (name: string) => {
+    if (!selectedArrangementId) return;
+    await duplicateArrangementById(selectedArrangementId, name);
+  };
+
+  const renameCurrentArrangement = async (name: string) => {
+    if (!selectedArrangementId) return;
+    await renameArrangementById(selectedArrangementId, name);
   };
 
   const stemFileName = (url?: string) => {
@@ -1337,6 +1625,7 @@ export default function App() {
       setSelectedStemId(preferredStemId(restored, arrangement));
       setCurrentTime(0);
       setPlaying(false);
+      clearEditorUndoHistory();
       alert("Working-copy changes discarded. The project was reloaded from the original feedpak.");
     } catch (error) {
       alert(error instanceof Error ? error.message : String(error));
@@ -1450,6 +1739,7 @@ export default function App() {
   }, playing);
 
   const changeNote = (updatedNote: MidiNote) => {
+    recordEditorUndoSnapshot("note-change");
     markProjectDirty();
     setProject((prev) => ({
       ...prev,
@@ -1476,6 +1766,7 @@ export default function App() {
   };
 
   const addNotes = (notes: MidiNote[]) => {
+    recordEditorUndoSnapshot("note-add");
     markProjectDirty();
     setProject((prev) => ({
       ...prev,
@@ -1487,6 +1778,7 @@ export default function App() {
   };
 
   const deleteNote = (noteId: string) => {
+    recordEditorUndoSnapshot("note-delete");
     markProjectDirty();
     setProject((prev) => ({
       ...prev,
@@ -1495,6 +1787,7 @@ export default function App() {
   };
 
   const changeSyncPoint = (updatedPoint: SyncPoint) => {
+    recordEditorUndoSnapshot("sync-change");
     markProjectDirty();
     setProject((prev) => ({
       ...prev,
@@ -1505,6 +1798,7 @@ export default function App() {
   };
 
   const addSyncPointAt = (time = currentTime) => {
+    recordEditorUndoSnapshot("sync-add");
     const nextId = crypto.randomUUID();
     markProjectDirty();
     setProject((prev) => ({
@@ -1624,6 +1918,24 @@ export default function App() {
             disabled={!hasProjectLoaded}
           >
             Arrangements
+          </button>
+          <button
+            type="button"
+            className={activePage === "drums" ? "primaryButton" : "secondaryButton"}
+            aria-current={activePage === "drums" ? "page" : undefined}
+            onClick={() => setActivePage("drums")}
+            disabled={!hasProjectLoaded}
+          >
+            Drums
+          </button>
+          <button
+            type="button"
+            className={activePage === "notation" ? "primaryButton" : "secondaryButton"}
+            aria-current={activePage === "notation" ? "page" : undefined}
+            onClick={() => setActivePage("notation")}
+            disabled={!hasProjectLoaded}
+          >
+            Notation
           </button>
           <button
             type="button"
@@ -1867,6 +2179,21 @@ export default function App() {
             </section>
           </div>
         </section>
+      ) : activePage === "notation" ? (
+        <Suspense fallback={<LoadingPanel label="Loading notation view..." />}>
+          <NotationPanel
+            project={project}
+            arrangements={project.arrangements}
+            selectedArrangementId={selectedArrangementId}
+            selectedArrangement={selectedArrangement}
+            arrangementKind={editorKind}
+            notes={project.notes}
+            duration={project.duration}
+            bpm={project.bpm}
+            meter={project.meter}
+            onSelectArrangement={selectArrangement}
+          />
+        </Suspense>
       ) : activePage === "lyrics" ? (
         <section className="lyricsPage panel">
           <div className="panelHeader">
@@ -2133,6 +2460,21 @@ export default function App() {
             onPlaybackRateChange={setPlaybackRate}
           />
 
+          <section className="panel editUndoBar">
+            <button
+              type="button"
+              className="secondaryButton"
+              onClick={undoEditorChange}
+              disabled={!canEditorUndo}
+              title="Undo last edit (Ctrl+Z)"
+            >
+              Undo (Ctrl+Z)
+            </button>
+            <span className="miniMeta">
+              Revert the latest note or sync edit in Arrangements.
+            </span>
+          </section>
+
           <section className="panel midiPreviewBar">
             <label className="midiPreviewToggle">
               <input
@@ -2173,7 +2515,7 @@ export default function App() {
               <span>{Math.round(midiPreviewVolume * 100)}%</span>
             </label>
             <span className="miniMeta">
-              Play + MIDI preview: senti audio e tab insieme per verificare il sync. Timbro attivo: {resolvedMidiPreset.label}.
+              Play + MIDI preview: hear audio and tab together to verify sync. Active timbre: {resolvedMidiPreset.label}.
             </span>
           </section>
 
@@ -2185,24 +2527,230 @@ export default function App() {
                 onSelectStem={setSelectedStemId}
               />
               <ArrangementSelector
-                arrangements={project.arrangements}
-                selectedId={selectedArrangementId}
+                arrangements={melodicArrangements}
+                selectedId={selectedMelodicArrangement?.id}
                 onSelect={selectArrangement}
-                onDeleteCurrent={deleteCurrentArrangement}
-                onDuplicateCurrent={duplicateCurrentArrangement}
-                onRenameCurrent={renameCurrentArrangement}
+                onDeleteCurrent={
+                  selectedMelodicArrangementId
+                    ? () => deleteArrangementById(selectedMelodicArrangementId)
+                    : undefined
+                }
+                onDuplicateCurrent={
+                  selectedMelodicArrangementId
+                    ? (name) => duplicateArrangementById(selectedMelodicArrangementId, name)
+                    : undefined
+                }
+                onRenameCurrent={
+                  selectedMelodicArrangementId
+                    ? (name) => renameArrangementById(selectedMelodicArrangementId, name)
+                    : undefined
+                }
                 deleting={deletingArrangement}
                 duplicating={duplicatingArrangement}
                 renaming={renamingArrangement}
               />
               <ArrangementTransferPanel
                 project={project}
-                arrangement={selectedArrangement}
+                arrangement={selectedMelodicArrangement}
+                strictArrangement
                 onProjectReady={loadProcessedProject}
               />
               <AddArrangementPanel
                 project={project}
                 onProjectReady={loadProcessedProject}
+                allowedInstruments={["guitar", "bass", "keys"]}
+                defaultInstrument="guitar"
+              />
+              <p className="hint slimHint">
+                Drum arrangements are managed in the dedicated Drums page.
+              </p>
+            </aside>
+
+            <section className="mainEditor">
+              <WaveformView
+                duration={project.duration}
+                currentTime={currentTime}
+                bpm={project.bpm}
+                beatsPerBar={project.meter[0]}
+                beatgrid={project.beatgrid}
+                tempoMap={project.tempoMap}
+                selectedStemName={selectedStem?.name ?? "Audio"}
+                selectedStemUrl={selectedStem?.url}
+                zoom={waveformZoom}
+                playing={playing}
+                syncPoints={project.syncPoints}
+                selectedSyncPointId={selectedSyncPointId}
+                onSeek={seekTo}
+                onSelectSyncPoint={setSelectedSyncPointId}
+                onChangeSyncPoint={changeSyncPoint}
+                onAddSyncPointAt={addSyncPointAt}
+                headerControl={
+                  <ZoomControls
+                    label="Zoom"
+                    zoom={waveformZoom}
+                    onZoomChange={setWaveformZoom}
+                  />
+                }
+              />
+              {selectedMelodicArrangement ? (
+                melodicEditorKind ? (
+                  <>
+                    <TabEditor
+                      notes={project.notes}
+                      selectedTrackId={selectedMelodicArrangementId}
+                      arrangementKind={melodicEditorKind}
+                      duration={project.duration}
+                      currentTime={currentTime}
+                      tuning={selectedMelodicArrangement?.tuning}
+                      zoom={tabZoom}
+                      syncPoints={project.syncPoints}
+                      tones={selectedMelodicArrangement?.tones}
+                      selectedSyncPointId={selectedSyncPointId}
+                      onSelectSyncPoint={setSelectedSyncPointId}
+                      onChangeSyncPoint={changeSyncPoint}
+                      onAddSyncPointAt={addSyncPointAt}
+                      onChangeNote={changeNote}
+                      onSelectNote={selectNote}
+                      onAddNotes={addNotes}
+                      onDeleteNote={deleteNote}
+                      onSeek={seekTo}
+                      headerControl={
+                        <ZoomControls
+                          label="Zoom"
+                          zoom={tabZoom}
+                          onZoomChange={setTabZoom}
+                        />
+                      }
+                      chordDiagram={
+                        <ChordDiagram
+                          notes={project.notes}
+                          arrangement={selectedMelodicArrangement}
+                          arrangementKind={melodicEditorKind}
+                          selectedTrackId={selectedMelodicArrangementId}
+                          currentTime={currentTime}
+                        />
+                      }
+                    />
+                  </>
+                ) : (
+                  <PianoRoll
+                    notes={project.notes}
+                    selectedTrackId={selectedMelodicArrangementId}
+                    duration={project.duration}
+                    currentTime={currentTime}
+                    zoom={tabZoom}
+                    syncPoints={project.syncPoints}
+                    selectedSyncPointId={selectedSyncPointId}
+                    onSelectSyncPoint={setSelectedSyncPointId}
+                    onChangeSyncPoint={changeSyncPoint}
+                    onAddSyncPointAt={addSyncPointAt}
+                    onChangeNote={changeNote}
+                    onSelectNote={selectNote}
+                    onAddNotes={addNotes}
+                    onDeleteNote={deleteNote}
+                    onSeek={seekTo}
+                    headerControl={
+                      <ZoomControls
+                        label="Zoom"
+                        zoom={tabZoom}
+                        onZoomChange={setTabZoom}
+                      />
+                    }
+                  />
+                )
+              ) : (
+                <section className="panel compactPanel">
+                  <p className="hint slimHint">
+                    No guitar/bass arrangement available. Import one from this page, or edit drums in the Drums page.
+                  </p>
+                </section>
+              )}
+            </section>
+          </div>
+        </>
+      ) : activePage === "drums" ? (
+        <>
+          <audio
+            ref={audioRef}
+            src={selectedAudioUrl}
+            preload="metadata"
+            onLoadedMetadata={(event) => {
+              if (!project.duration && event.currentTarget.duration) {
+                setCurrentTime(0);
+              }
+            }}
+            onEnded={() => setPlaying(false)}
+            onPause={() => setPlaying(false)}
+            onPlay={() => setPlaying(true)}
+          />
+
+          <Transport
+            playing={playing}
+            currentTime={currentTime}
+            duration={project.duration}
+            bpm={project.bpm}
+            onPlayPause={togglePlayback}
+            onSeek={seekTo}
+            playbackRate={playbackRate}
+            onPlaybackRateChange={setPlaybackRate}
+          />
+
+          <section className="panel editUndoBar">
+            <button
+              type="button"
+              className="secondaryButton"
+              onClick={undoEditorChange}
+              disabled={!canEditorUndo}
+              title="Undo last edit (Ctrl+Z)"
+            >
+              Undo (Ctrl+Z)
+            </button>
+            <span className="miniMeta">
+              Revert the latest note or sync edit in Drums.
+            </span>
+          </section>
+
+          <div className="editorGrid">
+            <aside className="sidePanel">
+              <AudioSourceSelector
+                stems={project.stems}
+                selectedStemId={selectedStem?.id}
+                onSelectStem={setSelectedStemId}
+              />
+              <ArrangementSelector
+                arrangements={drumArrangements}
+                selectedId={selectedDrumArrangement?.id}
+                onSelect={selectArrangement}
+                onDeleteCurrent={
+                  selectedDrumArrangementId
+                    ? () => deleteArrangementById(selectedDrumArrangementId)
+                    : undefined
+                }
+                onDuplicateCurrent={
+                  selectedDrumArrangementId
+                    ? (name) => duplicateArrangementById(selectedDrumArrangementId, name)
+                    : undefined
+                }
+                onRenameCurrent={
+                  selectedDrumArrangementId
+                    ? (name) => renameArrangementById(selectedDrumArrangementId, name)
+                    : undefined
+                }
+                deleting={deletingArrangement}
+                duplicating={duplicatingArrangement}
+                renaming={renamingArrangement}
+              />
+              <ArrangementTransferPanel
+                project={project}
+                arrangement={selectedDrumArrangement}
+                strictArrangement
+                onProjectReady={loadProcessedProject}
+              />
+              <AddArrangementPanel
+                project={project}
+                onProjectReady={loadProcessedProject}
+                allowedInstruments={["drums"]}
+                defaultInstrument="drums"
               />
             </aside>
 
@@ -2232,62 +2780,35 @@ export default function App() {
                   />
                 }
               />
-              {editorKind ? (
-                <>
-                  <TabEditor
-                    notes={project.notes}
-                    selectedTrackId={selectedArrangementId}
-                    arrangementKind={editorKind}
-                    duration={project.duration}
-                    currentTime={currentTime}
-                    tuning={selectedArrangement?.tuning}
-                    zoom={tabZoom}
-                    syncPoints={project.syncPoints}
-                    tones={selectedArrangement?.tones}
-                    selectedSyncPointId={selectedSyncPointId}
-                    onSelectSyncPoint={setSelectedSyncPointId}
-                    onChangeSyncPoint={changeSyncPoint}
-                    onAddSyncPointAt={addSyncPointAt}
-                    onChangeNote={changeNote}
-                    onSelectNote={selectNote}
-                    onAddNotes={addNotes}
-                    onDeleteNote={deleteNote}
-                    onSeek={seekTo}
-                    headerControl={
-                      <ZoomControls
-                        label="Zoom"
-                        zoom={tabZoom}
-                        onZoomChange={setTabZoom}
-                      />
-                    }
-                    chordDiagram={
-                      <ChordDiagram
-                        notes={project.notes}
-                        arrangement={selectedArrangement}
-                        arrangementKind={editorKind}
-                        selectedTrackId={selectedArrangementId}
-                        currentTime={currentTime}
-                      />
-                    }
-                  />
-                </>
-              ) : (
-                <PianoRoll
+
+              {selectedDrumArrangement ? (
+                <DrumLaneEditor
                   notes={project.notes}
-                  selectedTrackId={selectedArrangementId}
+                  selectedTrackId={selectedDrumArrangementId}
                   duration={project.duration}
                   currentTime={currentTime}
-                  zoom={tabZoom}
+                  zoom={drumZoom}
+                  bpm={project.bpm}
+                  beatsPerBar={project.meter[0]}
                   onChangeNote={changeNote}
                   onSelectNote={selectNote}
+                  onAddNotes={addNotes}
+                  onDeleteNote={deleteNote}
+                  onSeek={seekTo}
                   headerControl={
                     <ZoomControls
                       label="Zoom"
-                      zoom={tabZoom}
-                      onZoomChange={setTabZoom}
+                      zoom={drumZoom}
+                      onZoomChange={setDrumZoom}
                     />
                   }
                 />
+              ) : (
+                <section className="panel compactPanel">
+                  <p className="hint slimHint">
+                    No drum arrangement available. Import a MIDI drum track from this page.
+                  </p>
+                </section>
               )}
             </section>
           </div>

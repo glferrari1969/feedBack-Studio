@@ -129,7 +129,7 @@ function describeIntervals(rootPc: number, intervals: number[]) {
   return `${formatPitchClass(rootPc)}(${tail.join(',')})`;
 }
 
-function detectChordName(notes: MidiNote[]) {
+export function detectChordName(notes: MidiNote[]) {
   if (!notes.length) return 'No chord';
 
   const sortedByPitch = [...notes].sort((a, b) => a.pitch - b.pitch);
@@ -242,7 +242,7 @@ export function ChordDiagram({ notes, arrangement, arrangementKind, selectedTrac
   const baseFret = minFret === 99 || useNutPosition ? 1 : clamp(minFret, 1, 20);
   const fretCount = 5;
   const stringCount = tuning.length;
-  const width = Math.max(140, stringCount * 24 + 32);
+  const width = Math.max(124, stringCount * 20 + 28);
   const height = 150;
   const top = 24;
   const left = 18;
@@ -272,7 +272,7 @@ export function ChordDiagram({ notes, arrangement, arrangementKind, selectedTrac
               const stringNumber = index + 1;
               if (playedStrings.has(stringNumber)) return null;
               const x = left + index * stringGap;
-              return <text key={`mute-${index}`} x={x - 4} y={14}>X</text>;
+              return <text key={`mute-${index}`} x={x} y={14} className="chordTopMarker" textAnchor="middle">X</text>;
             })
           : null}
         {Array.from({ length: fretCount + 1 }).map((_, index) => {
@@ -282,7 +282,7 @@ export function ChordDiagram({ notes, arrangement, arrangementKind, selectedTrac
         {baseFret > 1 ? <text x={2} y={top + fretGap * 0.7}>{baseFret}</text> : null}
         {tuning.map((openPitch, index) => {
           const x = left + index * stringGap;
-          return <text key={`label-${index}`} x={x - 6} y={top + gridHeight + 18} className="stringLabel">{midiToName(openPitch)}</text>;
+          return <text key={`label-${index}`} x={x} y={top + gridHeight + 18} className="stringLabel" textAnchor="middle">{midiToName(openPitch)}</text>;
         })}
         {mapped.map((note) => {
           const stringNumber = note.string ?? 1;
@@ -293,14 +293,14 @@ export function ChordDiagram({ notes, arrangement, arrangementKind, selectedTrac
           const visualStringIndex = clamp(stringNumber - 1, 0, stringCount - 1);
           const x = left + visualStringIndex * stringGap;
           if (fret === 0) {
-            return <text key={note.id} x={x - 4} y={16}>0</text>;
+            return <text key={note.id} x={x} y={16} className="chordTopMarker" textAnchor="middle">0</text>;
           }
           const relativeFret = clamp(fret - baseFret + 1, 1, fretCount);
           const y = top + (relativeFret - 0.5) * fretGap;
           return (
             <g key={note.id}>
-              <circle cx={x} cy={y} r={8} />
-              <text x={x - 4} y={y + 4} className="dotText">{fret}</text>
+              <circle cx={x} cy={y} r={9} />
+              <text x={x} y={y} className="dotText" textAnchor="middle" dominantBaseline="middle">{fret}</text>
             </g>
           );
         })}

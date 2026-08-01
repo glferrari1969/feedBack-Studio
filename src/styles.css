@@ -1,5 +1,7 @@
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-tab-mono: "Cascadia Mono", "JetBrains Mono", "Consolas", "Courier New", monospace;
+  --font-notation-serif: "Noto Serif", "Georgia", "Times New Roman", serif;
   color: #e5e7eb;
   background: #0b1120;
 }
@@ -96,6 +98,13 @@ p { margin: 4px 0 0; color: #94a3b8; }
   padding: 10px 12px;
 }
 
+.editUndoBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
 .midiPreviewToggle {
   display: inline-flex;
   align-items: center;
@@ -146,12 +155,36 @@ p { margin: 4px 0 0; color: #94a3b8; }
     grid-template-columns: 1fr;
     align-items: stretch;
   }
+
+  .editUndoBar {
+    flex-wrap: wrap;
+  }
 }
 
 .editorGrid { display: grid; grid-template-columns: 330px minmax(520px, 1fr) 400px; gap: 14px; align-items: start; }
 .sidePanel, .mainEditor, .scorePanel { display: grid; gap: 14px; }
 
 .field { display: grid; gap: 6px; padding: 10px 13px 0; color: #cbd5e1; font-size: 12px; }
+.filePickerRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.filePickerButton {
+  white-space: nowrap;
+}
+
+.filePickerName {
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .compactPanel, .importPanel, .syncEditor { overflow: hidden; }
 .importPanel .primaryButton, .importPanel .secondaryButton { margin: 12px 13px; width: calc(100% - 26px); justify-content: center; }
 .hint { padding: 0 13px 13px; font-size: 12px; color: #94a3b8; }
@@ -170,11 +203,413 @@ code { color: #bae6fd; }
 }
 
 .waveformCanvas { display: block; width: 100%; height: 190px; cursor: pointer; border-radius: 0 0 14px 14px; image-rendering: auto; }
-.pianoRollGrid { position: relative; height: 310px; margin: 12px 13px; background: #020617; border: 1px solid #263244; border-radius: 11px; overflow: hidden; }
+.pianoRollViewport {
+  margin: 12px 13px;
+  border: 1px solid #263244;
+  border-radius: 11px;
+  background: #020617;
+  overflow: auto;
+  min-height: 560px;
+  max-height: 760px;
+}
+
+.pianoRollCanvas {
+  position: relative;
+  display: flex;
+  width: max-content;
+}
+
+.pianoKeyLane {
+  position: sticky;
+  left: 0;
+  z-index: 9;
+  flex: 0 0 auto;
+  border-right: 1px solid #334155;
+  background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
+  box-shadow: 4px 0 12px rgba(2, 6, 23, 0.55);
+}
+
+.pianoKeyRow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  border-top: 1px solid rgba(51, 65, 85, 0.45);
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.pianoKeyRow.white {
+  background: rgba(226, 232, 240, 0.11);
+  color: #f8fafc;
+}
+
+.pianoKeyRow.black {
+  background: rgba(15, 23, 42, 0.58);
+  color: #93c5fd;
+}
+
+.pianoKeyRow.octave {
+  border-top-color: rgba(148, 163, 184, 0.82);
+}
+
+.pianoKeyName {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.pianoKeyOctave {
+  font-size: 9px;
+  font-weight: 600;
+  color: #7dd3fc;
+  opacity: 0.8;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.pianoRollGrid { position: relative; min-height: 100%; flex: 0 0 auto; }
 .pitchLine { position: absolute; left: 0; right: 0; border-top: 1px solid rgba(51,65,85,0.45); }
-.noteBlock { position: absolute; height: 16px; transform: translateY(-50%); background: #38bdf8; color: #082f49; border: 0; border-radius: 5px; overflow: hidden; font-size: 10px; cursor: pointer; }
+.pitchLine.octaveLine { border-top-color: rgba(148,163,184,0.82); }
+
+.noteBlock {
+  position: absolute;
+  height: 24px;
+  padding: 0 8px;
+  transform: translateY(-50%);
+  background: #38bdf8;
+  color: #082f49;
+  border: 0;
+  border-radius: 5px;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.noteBlock em {
+  font-size: 9px;
+  opacity: 0.72;
+}
 .noteBlock.selected { outline: 2px solid #facc15; background: #fbbf24; }
 .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #f8fafc; box-shadow: 0 0 16px rgba(248,250,252,0.8); pointer-events: none; }
+
+.drumLaneGrid {
+  position: relative;
+  height: 360px;
+  margin: 12px 13px;
+  background: #020617;
+  border: 1px solid #263244;
+  border-radius: 11px;
+  overflow: hidden;
+}
+
+.drumLaneViewport {
+  position: relative;
+}
+
+.drumLaneScroller {
+  position: relative;
+}
+
+.drumLaneLegendOverlay {
+  position: absolute;
+  top: 12px;
+  left: 13px;
+  width: 84px;
+  height: 360px;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.drumLaneLegendRow {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.drumLaneLegendRow:nth-child(odd) {
+  background: rgba(14, 24, 39, 0.35);
+}
+
+.drumEditorControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+  padding: 10px 13px 0;
+}
+
+.drumModeSwitch,
+.drumPresetSelect,
+.drumStepSelect {
+  display: grid;
+  gap: 4px;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.drumModeSwitch select,
+.drumPresetSelect select,
+.drumStepSelect select {
+  min-width: 130px;
+  background: #020617;
+  color: #e5e7eb;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.drumLaneRow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+.drumLaneRow:nth-child(odd) {
+  background: rgba(14, 24, 39, 0.35);
+}
+
+.drumLaneLabel {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #cbd5e1;
+  background: rgba(2, 6, 23, 0.9);
+  border: 1px solid #263244;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.drumLaneLegend {
+  margin: 0 13px 8px;
+  padding: 10px;
+  border: 1px solid #263244;
+  border-radius: 10px;
+  background: #020617;
+}
+
+.drumLegendHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
+.drumLegendIntro {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.drumLegendHint {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.drumLegendGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px;
+}
+
+.drumLegendItem {
+  display: grid;
+  gap: 5px;
+  align-items: start;
+  padding: 6px 7px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.58);
+  border: 1px solid rgba(51, 65, 85, 0.6);
+}
+
+.drumLegendVisualRow {
+  display: grid;
+  grid-template-columns: 28px 42px auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.drumLegendIcon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 1px;
+}
+
+.drumLegendIcon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.drumLegendIcon.kick {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.drumLegendIcon.drum {
+  background: rgba(249, 115, 22, 0.1);
+  border-color: rgba(249, 115, 22, 0.35);
+}
+
+.drumLegendIcon.cymbal {
+  background: rgba(6, 182, 212, 0.1);
+  border-color: rgba(6, 182, 212, 0.35);
+}
+
+.drumLegendCode {
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.drumLegendName {
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.drumLegendMidi {
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.drumLegendPieces {
+  color: #7dd3fc;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.drumBeatLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  pointer-events: none;
+}
+
+.drumBeatLine.minor {
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.drumBeatLine.medium {
+  background: rgba(125, 211, 252, 0.24);
+}
+
+.drumBeatLine.major {
+  background: rgba(59, 130, 246, 0.35);
+}
+
+.drumStepCell {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.72);
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 0;
+}
+
+.drumStepCell:hover {
+  border-color: rgba(125, 211, 252, 0.8);
+  background: rgba(14, 40, 62, 0.8);
+}
+
+.drumStepCell.active {
+  border-color: #0ea5e9;
+  background: #38bdf8;
+  color: #082f49;
+}
+
+.drumStepCell.active:hover {
+  background: #7dd3fc;
+}
+
+.drumStepCell.range {
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.45) inset;
+  background: rgba(234, 179, 8, 0.2);
+}
+
+.drumStepCell:active {
+  cursor: grabbing;
+}
+
+.drumHit {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  border-radius: 999px;
+  border: 1px solid #0ea5e9;
+  background: #38bdf8;
+  color: #082f49;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-weight: 900;
+  cursor: grab;
+}
+
+.drumHit.selected {
+  outline: 2px solid #facc15;
+  background: #fbbf24;
+  border-color: #f59e0b;
+  color: #451a03;
+}
+
+.drumHitSymbol {
+  line-height: 1;
+  font-size: 10px;
+}
+
+.drumHit:active {
+  cursor: grabbing;
+}
+
+@media (max-width: 1300px) {
+  .drumModeSwitch select,
+  .drumPresetSelect select,
+  .drumStepSelect select {
+    min-width: 110px;
+  }
+
+  .drumLegendGrid {
+    grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+  }
+}
 
 .syncTable { display: grid; grid-template-columns: 58px 58px 84px 1fr; gap: 6px; padding: 12px; align-items: center; }
 .syncHead { color: #94a3b8; font-size: 12px; font-weight: 700; }
@@ -241,7 +676,7 @@ code { color: #bae6fd; }
   user-select: none;
 }
 .tabStringRow { position: absolute; left: 0; right: 0; height: 1px; border-top: 2px solid #64748b; pointer-events: none; }
-.tabStringRow span { position: absolute; left: 8px; top: -13px; color: #bae6fd; background: #020617; border: 1px solid #263244; border-radius: 999px; padding: 2px 6px; font-size: 10px; font-weight: 800; }
+.tabStringRow span { position: absolute; left: 8px; top: -13px; color: #bae6fd; background: #020617; border: 1px solid #263244; border-radius: 999px; padding: 2px 6px; font-size: 10px; font-weight: 800; font-family: var(--font-tab-mono); font-variant-numeric: tabular-nums; }
 .tabNote {
   position: absolute;
   height: 26px;
@@ -257,6 +692,9 @@ code { color: #bae6fd; }
   color: #082f49;
   font-size: 12px;
   font-weight: 900;
+  font-family: var(--font-tab-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
   box-shadow: 0 8px 20px rgba(14,165,233,0.18);
   cursor: grab;
 }
@@ -271,6 +709,7 @@ code { color: #bae6fd; }
 .noteEditGrid { display: grid; grid-template-columns: repeat(4, minmax(70px, 1fr)); gap: 8px; padding: 10px; }
 .noteEditGrid label { display: grid; gap: 4px; color: #cbd5e1; font-size: 11px; }
 .noteEditGrid input { width: 100%; background: #111827; color: #e5e7eb; border: 1px solid #334155; border-radius: 8px; padding: 6px; }
+.noteEditGrid input { font-family: var(--font-tab-mono); font-variant-numeric: tabular-nums; }
 .noteButtons { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; }
 .chordMemberEditor { grid-column: 1 / -1; display: grid; gap: 8px; margin-top: 4px; padding-top: 8px; border-top: 1px solid #263244; }
 .chordMemberHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #cbd5e1; font-size: 11px; }
@@ -288,6 +727,7 @@ code { color: #bae6fd; }
 .chordMemberRow.active { border-color: #facc15; box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.28) inset; }
 .chordMemberRow label { display: grid; gap: 4px; color: #cbd5e1; font-size: 11px; }
 .chordMemberRow input { width: 100%; background: #111827; color: #e5e7eb; border: 1px solid #334155; border-radius: 8px; padding: 6px; }
+.chordMemberRow input { font-family: var(--font-tab-mono); font-variant-numeric: tabular-nums; }
 .chordMemberTag { justify-self: start; }
 .techniqueGrid { display: flex; flex-wrap: wrap; gap: 7px; padding: 10px; }
 .techniqueButton { border: 1px solid #334155; background: #111827; color: #cbd5e1; border-radius: 999px; padding: 6px 9px; font-size: 11px; font-weight: 800; }
@@ -385,6 +825,7 @@ code { color: #bae6fd; }
 .warningText {
   color: #ffd166;
   margin-top: 4px;
+  overflow: hidden;
 }
 
 .waveformScroller {
@@ -393,11 +834,8 @@ code { color: #bae6fd; }
 
 .waveformSurface {
   position: relative;
-  height: 190px;
-  min-width: 100%;
-}
-
-.waveformCanvas {
+  position: static;
+  z-index: auto;
   position: absolute;
   left: 0;
   top: 0;
@@ -489,7 +927,7 @@ code { color: #bae6fd; }
   padding: 0;
   background: transparent;
   z-index: 5;
-  cursor: ew-resize;
+  cursor: grab;
 }
 
 .syncMarker::before {
@@ -506,7 +944,7 @@ code { color: #bae6fd; }
 .syncMarker span {
   position: absolute;
   top: 6px;
-  left: 5px;
+  padding-top: 0;
   transform: translateX(-50%);
   min-width: 34px;
   padding: 3px 5px;
@@ -2065,6 +2503,1387 @@ button:not(.dangerButton):not(.toneSegment):not(.toneSyncMarker):not(.syncMiniIt
 .fileButton.disabled {
   opacity: 0.55;
   pointer-events: none;
+}
+
+/* Dedicated notation page */
+.notationPage {
+  width: 100%;
+}
+
+.notationLayout {
+  display: grid;
+  grid-template-columns: minmax(270px, 340px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.notationSideRail,
+.notationMainPane {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.notationMainPane {
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+.notationUnifiedSheet {
+  margin: 10px 12px;
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.notationUnifiedHeader {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  text-align: center;
+  padding: 4px 8px 2px;
+  border-bottom: 1px solid #cfbea2;
+}
+
+.notationUnifiedHeader h2 {
+  margin: 0;
+  color: #2a2117;
+  font-size: 34px;
+  line-height: 1.05;
+  font-family: "Georgia", "Times New Roman", serif;
+  letter-spacing: 0.01em;
+}
+
+.notationUnifiedArtist {
+  margin: 0;
+  color: #3f3425;
+  font-size: 22px;
+  line-height: 1.1;
+  font-weight: 700;
+  font-family: "Georgia", "Times New Roman", serif;
+}
+
+.notationUnifiedAlbumYear {
+  margin: 0;
+  color: #64543d;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: "Georgia", "Times New Roman", serif;
+}
+
+.notationUnifiedMetaRow {
+  width: 100%;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: #5d4c36;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.notationUnifiedChordSection {
+  border: 1px solid #ccb998;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.notationUnifiedChordHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid #d3c4aa;
+  background: #ffffff;
+  color: #66563f;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.notationUnifiedChordRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+  background: #ffffff;
+  overflow: visible;
+}
+
+.notationUnifiedChordRow .notationChordCard {
+  flex: 0 0 auto;
+  background: #ffffff;
+  border: 1px solid #d5c5a8;
+  box-shadow: none;
+}
+
+.notationLeadSheetSystems {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  background: #ffffff;
+}
+
+.notationLeadSheetSystem {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.notationLeadBar {
+  border: 1px solid #dbc8a8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fffefb 0%, #fffaf0 100%);
+  padding: 8px;
+  display: grid;
+  gap: 5px;
+  min-height: 98px;
+}
+
+.notationLeadBarHeaderRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  color: #5f4d33;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.notationLeadBarHeaderRow strong {
+  color: #3b2f1f;
+  font-size: 12px;
+}
+
+.notationLeadBarChord {
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 18px;
+  line-height: 1.15;
+  color: #2f2417;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notationLeadBarMelody {
+  color: #4f402a;
+  font-size: 11px;
+  line-height: 1.35;
+  min-height: 28px;
+  overflow: hidden;
+}
+
+.notationLeadBarMeta {
+  color: #7b6648;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.notationKeysScoreViewport {
+  position: relative;
+  height: 520px;
+  min-height: 320px;
+  overflow: hidden;
+  border: 1px solid #bca98a;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.notationKeysScoreScroller {
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  min-height: 0;
+  padding-bottom: 0;
+}
+
+.notationKeysScoreViewport .musicXmlPreviewPanel {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+.notationLeadHeaderMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notationLeadSystemBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #3b2a14;
+  color: #fff6e5;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.notationLeadSheetSystemsTab {
+  gap: 8px;
+  padding-top: 0;
+  background: #fffefb;
+}
+
+.notationLeadSheetSystemsTab .notationLeadSheetSystem {
+  gap: 0;
+  border: 1px solid #d1bfa0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fffdf7;
+}
+
+.notationLeadSheetSystemsTab .notationLeadBar {
+  border: 0;
+  border-right: 1px solid #d7c4a5;
+  border-radius: 0;
+  min-height: 86px;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(128, 101, 62, 0.08) 0,
+      rgba(128, 101, 62, 0.08) 1px,
+      transparent 1px,
+      transparent 16px
+    ),
+    linear-gradient(180deg, #fffefb 0%, #fffaf1 100%);
+}
+
+.notationLeadSheetSystemsTab .notationLeadBar:last-child {
+  border-right: 0;
+}
+
+.notationLeadSheetSystemsTab .notationLeadBarChord {
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 17px;
+  letter-spacing: 0.01em;
+}
+
+.notationLeadSheetSystemsTab .notationLeadBarMelody {
+  font-family: "Consolas", "Courier New", monospace;
+  min-height: 24px;
+}
+
+.notationUnifiedSheet .musicXmlPreviewPanel {
+  margin: 0;
+  border-color: #bca98a;
+}
+
+.notationUnifiedSheet .hint.slimHint {
+  margin: 8px 10px;
+}
+
+.notationDrumSheet {
+  gap: 10px;
+}
+
+.drumNotationStaffLegend {
+  border: 1px solid #ccb891;
+  border-radius: 10px;
+  background: rgba(255, 252, 243, 0.9);
+  padding: 8px 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.drumNotationStaffLegendTitle {
+  color: #4b3c28;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.drumNotationStaffLegendGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.drumNotationStaffLegendItem {
+  display: grid;
+  grid-template-columns: 84px 1fr 32px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d7c4a1;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 6px 8px;
+  opacity: 0.74;
+}
+
+.drumNotationStaffLegendItem.is-active {
+  opacity: 1;
+  border-color: #bb9356;
+  background: #fffef9;
+}
+
+.drumNotationStaffLegendGlyph {
+  width: 82px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cfbc98;
+  border-radius: 7px;
+  background: #fff9ef;
+}
+
+.drumNotationStaffLegendGlyph svg {
+  width: 74px;
+  height: 70px;
+  display: block;
+}
+
+.drumLegendStaffLine {
+  stroke: #ccb995;
+  stroke-width: 1;
+}
+
+.drumLegendNoteCross line {
+  stroke: #241b10;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.drumLegendNoteFilled {
+  fill: #241b10;
+  stroke: #241b10;
+  stroke-width: 1;
+}
+
+.drumLegendStem {
+  stroke: #241b10;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.drumLegendOpenRing {
+  fill: none;
+  stroke: #241b10;
+  stroke-width: 1.7;
+}
+
+.drumNotationStaffLegendText {
+  display: grid;
+  gap: 2px;
+}
+
+.drumNotationStaffLegendInstrument {
+  color: #503f2a;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.drumNotationStaffLegendMeta {
+  color: #71614b;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.drumNotationStaffLegendIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid #ab9370;
+  display: grid;
+  place-items: center;
+  background: #f4e9ce;
+}
+
+.drumNotationStaffLegendIcon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.drumNotationConventions {
+  border: 1px solid #ccb891;
+  border-radius: 10px;
+  background: rgba(255, 252, 243, 0.9);
+  padding: 8px 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.drumNotationConventionsTitle {
+  color: #4b3c28;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.drumNotationConventionsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 6px 10px;
+}
+
+.drumNotationConventionsItem {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 7px;
+  color: #524430;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.drumNotationConventionsSymbol {
+  min-width: 32px;
+  width: 32px;
+  height: 32px;
+  text-align: center;
+  display: inline-grid;
+  place-items: center;
+  color: #231b12;
+  font-size: 12px;
+  font-weight: 900;
+  font-family: "Georgia", "Times New Roman", serif;
+}
+
+.drumNotationConventionsSymbol svg {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+
+.drumScorePaper {
+  border: 1px solid #cbb89a;
+  border-radius: 11px;
+  overflow-x: hidden;
+  overflow-y: visible;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.5), rgba(255,255,255,0.14)),
+    #fff7e8;
+  padding: 8px;
+}
+
+.drumScoreViewport {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  transform-origin: left top;
+}
+
+.drumScoreSystem {
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.drumScoreSystemSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fffdf6;
+}
+
+.drumScoreBackdrop {
+  fill: rgba(255, 255, 255, 0.92);
+  stroke: #d5c4a5;
+  stroke-width: 1;
+}
+
+.drumScorePercLabel {
+  fill: #4f3f2b;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: "Georgia", "Times New Roman", serif;
+}
+
+.drumScoreMeterText {
+  fill: #4f3f2b;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: "Georgia", "Times New Roman", serif;
+}
+
+.drumScoreStaffLine {
+  stroke: #4e402d;
+  stroke-width: 1.5;
+}
+
+.drumScoreBeatGuide {
+  stroke: rgba(83, 66, 43, 0.22);
+  stroke-width: 1;
+}
+
+.drumScoreSubdivisionGuide {
+  stroke: rgba(90, 74, 49, 0.11);
+  stroke-width: 0.8;
+}
+
+.drumScoreBarLine {
+  stroke: rgba(55, 44, 29, 0.68);
+  stroke-width: 1.9;
+}
+
+.drumScoreBarNumber {
+  fill: #4e3f2a;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: "Georgia", "Times New Roman", serif;
+}
+
+.drumScoreLedgerLine {
+  stroke: #4a3b28;
+  stroke-width: 1.4;
+}
+
+.drumScoreHeadNormal {
+  fill: #1f1810;
+  stroke: #1f1810;
+  stroke-width: 0.9;
+}
+
+.drumScoreHeadX line {
+  stroke: #1f1810;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.drumScoreStem {
+  stroke: #1f1810;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+}
+
+/*
+  PDF debug panel styles are intentionally disabled because debug UI is off
+  by default in NotationPanel (ENABLE_NOTATION_PDF_DEBUG = false).
+  Re-enable this block if debug output needs to be visible again.
+
+  .pdfDebugPanel {
+    margin: 0 12px 8px;
+    display: grid;
+    gap: 5px;
+  }
+
+  .pdfDebugLabel {
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .pdfDebugOutput {
+    width: 100%;
+    min-height: 44px;
+    resize: vertical;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 8px 9px;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.3;
+    user-select: text;
+  }
+*/
+
+.notationSetupFields {
+  display: grid;
+  gap: 8px;
+  padding: 10px 13px 0;
+}
+
+.notationSetupFields .tabPresetField {
+  display: grid;
+  gap: 4px;
+  color: #cbd5e1;
+  font-size: 11px;
+}
+
+.notationSetupFields select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px;
+  padding: 7px 9px;
+  background: #020617;
+  color: #93c5fd;
+  border: 1px solid #334155;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.notationSetupFields .tuningSummary {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  color: #93c5fd;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  padding: 8px 10px;
+  background: rgba(2, 6, 23, 0.45);
+  border: 1px solid #334155;
+  border-radius: 9px;
+}
+
+.notationWarning {
+  margin: 10px 13px 13px;
+  padding: 9px 10px;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  background: rgba(250, 204, 21, 0.08);
+  border-radius: 10px;
+  color: #fde68a;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.notationChordGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 10px;
+  padding: 10px;
+  max-height: 680px;
+  overflow: auto;
+}
+
+.notationPaperCard {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0.08)),
+    repeating-linear-gradient(
+      0deg,
+      rgba(93, 73, 44, 0.05) 0,
+      rgba(93, 73, 44, 0.05) 1px,
+      transparent 1px,
+      transparent 8px
+    ),
+    #f7f1e1;
+  border: 1px solid #c8b89b;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.7);
+}
+
+.notationChordCard {
+  border-radius: 7px;
+  overflow: hidden;
+  width: min(100%, 92px);
+  justify-self: center;
+}
+
+.notationChordHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 5px 7px;
+  border-bottom: 1px solid #d2c2a6;
+  background: #ffffff;
+  color: #66563f;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.notationChordHead strong {
+  color: #2d261c;
+  font-size: 11px;
+  font-family: var(--font-notation-serif);
+  letter-spacing: 0.03em;
+}
+
+.notationChordDiagram {
+  max-width: 86px;
+  margin-top: 4px;
+}
+
+.notationChordDiagram line {
+  stroke: #6c5d48;
+  stroke-width: 1.05;
+}
+
+.notationChordDiagram .nutLine {
+  stroke: #2f281e;
+  stroke-width: 2;
+}
+
+.notationChordDiagram circle {
+  fill: #111111;
+  stroke: #f3e8d7;
+  stroke-width: 0.9;
+}
+
+.notationChordDiagram text {
+  fill: #3a3023;
+  font-size: 8px;
+  font-family: var(--font-notation-serif);
+}
+
+.notationChordDiagram .dotText {
+  fill: #ffffff;
+  font-size: 9px;
+  font-weight: 800;
+  font-family: var(--font-tab-mono);
+}
+
+.notationPlayedLabel {
+  fill: #1e5f89;
+}
+
+.notationMutedLabel {
+  fill: #8a8275;
+}
+
+.notationSheet {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  margin: 8px 12px 4px;
+  border: 1px solid #bba782;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 247, 214, 0.65), transparent 40%),
+    #ede3cd;
+}
+
+.notationSystem {
+  border: 1px solid #c9b89d;
+  border-radius: 11px;
+  overflow: hidden;
+}
+
+.notationSystemMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid #d2c3aa;
+  color: #6e5d45;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.notationSystemMeta strong {
+  color: #2f2619;
+  font-family: "Georgia", "Times New Roman", serif;
+  letter-spacing: 0.03em;
+}
+
+.notationPitchGrid {
+  position: relative;
+  margin: 10px 10px 0;
+  border: 1px solid #bca98a;
+  border-radius: 10px 10px 0 0;
+  border-bottom: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 238, 0.94), rgba(243, 235, 213, 0.9)),
+    #fffdf7;
+}
+
+.notationPitchLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1.5px solid #594b37;
+  pointer-events: none;
+}
+
+.notationStaffLedger {
+  position: absolute;
+  width: 14px;
+  height: 0;
+  margin-left: -7px;
+  border-top: 1.4px solid #3c2f20;
+  pointer-events: none;
+}
+
+.notationStaffNote {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.notationTechniqueOverlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.notationTechniqueCurve {
+  fill: none;
+  stroke: #1c1610;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.notationTechniqueCurve.slide {
+  stroke-dasharray: 3 2;
+}
+
+.notationTechniqueCurve.bend {
+  stroke-width: 1.15;
+}
+
+.notationTechniqueCurve.vibrato {
+  stroke-width: 1.35;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+}
+
+.notationTechniquePalm {
+  stroke: #2d2419;
+  stroke-width: 1.2;
+  stroke-dasharray: 4 2;
+  stroke-linecap: round;
+}
+
+.notationTechniqueText {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: #1f1810;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-family: "Times New Roman", "Georgia", serif;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.notationTechniqueText.legato {
+  font-size: 9.5px;
+}
+
+.notationTechniqueText.bend {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.notationTechniqueText.palm {
+  transform: translate(0, -50%);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.notationStaffAccidental {
+  font-family: "Georgia", "Times New Roman", serif;
+  color: #2a2116;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  margin-right: 1px;
+  transform: translateY(-1px);
+}
+
+.notationStaffGlyph {
+  position: relative;
+  width: 20px;
+  height: 30px;
+  overflow: visible;
+}
+
+.notationStaffHead {
+  position: absolute;
+  left: 5px;
+  top: 11px;
+  width: 9px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.3px solid #1f160d;
+  background: #1f160d;
+  transform: rotate(-18deg);
+}
+
+.notationStaffHead.hollow,
+.notationStaffHead.harmonic {
+  background: #fffdf7;
+}
+
+.notationStaffStem {
+  position: absolute;
+  width: 1.4px;
+  background: #1f160d;
+}
+
+.notationStaffStem.up {
+  left: 13px;
+  top: -4px;
+  height: 19px;
+}
+
+.notationStaffStem.down {
+  left: 5px;
+  top: 11px;
+  height: 19px;
+}
+
+.notationStaffFlag {
+  position: absolute;
+  width: 7px;
+  height: 0;
+  border-top: 1.4px solid #1f160d;
+}
+
+.notationStaffFlag.up {
+  left: 13px;
+  transform-origin: left center;
+  transform: rotate(24deg);
+}
+
+.notationStaffFlag.up.flag1 { top: -4px; }
+.notationStaffFlag.up.flag2 { top: 1px; }
+.notationStaffFlag.up.flag3 { top: 6px; }
+
+.notationStaffFlag.down {
+  left: -1px;
+  transform-origin: right center;
+  transform: rotate(-24deg);
+}
+
+.notationStaffFlag.down.flag1 { top: 30px; }
+.notationStaffFlag.down.flag2 { top: 25px; }
+.notationStaffFlag.down.flag3 { top: 20px; }
+
+.notationStaffDot {
+  position: absolute;
+  left: 16px;
+  top: 13px;
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: #1f160d;
+}
+
+.notationSystemGrid {
+  position: relative;
+  margin: 10px;
+  border: 1px solid #bca98a;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(93, 73, 44, 0.06) 0,
+      rgba(93, 73, 44, 0.06) 1px,
+      transparent 1px,
+      transparent 22px
+    ),
+    #fffdf7;
+}
+
+.notationTabGrid {
+  margin-top: 0;
+  border-radius: 0 0 10px 10px;
+}
+
+.notationSystemGuide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  transform: translateX(-0.5px);
+  pointer-events: none;
+}
+
+.notationSystemGuide.minor {
+  background: rgba(93, 73, 44, 0.2);
+}
+
+.notationSystemGuide.major {
+  width: 2px;
+  transform: translateX(-1px);
+  background: rgba(55, 42, 26, 0.58);
+}
+
+.notationMeasureLabel {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  color: #4a3d2a;
+  font-size: 9px;
+  font-weight: 800;
+  font-family: "Georgia", "Times New Roman", serif;
+}
+
+.notationSystemString {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  border-top: 1.6px solid #5f513d;
+  pointer-events: none;
+}
+
+.notationSheetNote {
+  position: absolute;
+  transform: translate(-50%, -56%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #1f1b15;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: "Consolas", "Courier New", monospace;
+  line-height: 1;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  box-shadow: none;
+  pointer-events: none;
+  text-align: center;
+  z-index: 1;
+}
+
+.notationSheetNote strong {
+  display: block;
+  font: inherit;
+  font-weight: inherit;
+  line-height: 1;
+}
+
+.notationSheetExcludedMarker {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  font-weight: 900;
+  color: #fff1f2;
+  background: #be123c;
+  border: 1px solid #fb7185;
+  box-shadow: 0 0 6px rgba(244, 63, 94, 0.4);
+}
+
+.notationZoomControl {
+  display: inline-grid;
+  grid-template-columns: auto minmax(110px, 160px);
+  align-items: center;
+  gap: 7px;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.notationEngineBar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.musicXmlPreviewPanel {
+  margin: 10px 12px;
+  border: 1px solid #c9b89d;
+  border-radius: 10px;
+  overflow: auto;
+  background: #ffffff;
+}
+
+.musicXmlCanvas {
+  min-height: 260px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.musicXmlCanvas svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.notationPrintHost {
+  display: none;
+}
+
+@media (max-width: 1200px) {
+  .notationLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .notationMainPane {
+    grid-template-columns: 1fr;
+  }
+
+  .notationEngineBar {
+    justify-content: flex-start;
+  }
+
+  .notationUnifiedHeader h2 {
+    font-size: 28px;
+  }
+
+  .notationUnifiedArtist {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 900px) {
+  .notationLeadSheetSystem {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .notationLeadSheetSystem {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.notationExportActive > * {
+    display: none !important;
+  }
+
+  body.notationExportActive > .notationPrintHost {
+    display: block !important;
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    width: 100%;
+    max-width: 100%;
+    overflow: visible !important;
+  }
+
+  body.notationExportActive > .notationPrintHost .notationPdfSheet {
+    width: 100%;
+    max-width: none;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    break-inside: auto;
+    page-break-inside: auto;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+  }
+
+  body.notationExportActive > .notationPrintHost .notationPdfScore {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    break-inside: auto;
+    page-break-inside: auto;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+    break-before: auto !important;
+    break-after: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  body.notationExportActive > .notationPrintHost .notationPdfScorePage {
+    margin: 0 0 4mm 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  body.notationExportActive > .notationPrintHost .notationPdfScorePage:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  body.notationExportActive > .notationPrintHost .notationPdfScoreSvg {
+    width: calc(100% - 1mm) !important;
+    max-width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    margin-right: 1mm !important;
+  }
+
+  body.notationExportActive > .notationPrintHost .musicXmlPreviewPanel,
+  body.notationExportActive > .notationPrintHost .musicXmlCanvas,
+  body.notationExportActive > .notationPrintHost [id^="osmd"],
+  body.notationExportActive > .notationPrintHost [class^="osmd"] {
+    min-height: 0 !important;
+    height: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  body.notationExportActive > .notationPrintHost .notationKeysScoreViewport {
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.notationExportActive > .notationPrintHost .notationKeysScoreScroller {
+    overflow: visible !important;
+    padding-bottom: 0 !important;
+  }
+
+  body.notationExportActive > .notationPrintHost .notationKeysScoreViewport .musicXmlPreviewPanel {
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  body.notationExportActive > .notationPrintHost .hint.slimHint {
+    display: none !important;
+  }
+
+  .notationLayout {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .notationSideRail,
+  .notationChordPanel,
+  .notationZoomControl,
+  .notationEngineBar,
+  .hint.slimHint {
+    display: none !important;
+  }
+
+  .notationMainPane,
+  .notationTabPanel {
+    display: block;
+    gap: 0;
+  }
+
+  .notationUnifiedSheet {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    background: #ffffff !important;
+  }
+
+  .notationUnifiedChordSection {
+    border: 0;
+    border-radius: 0;
+    background: #ffffff !important;
+  }
+
+  .notationUnifiedChordHeader,
+  .notationUnifiedChordRow,
+  .notationUnifiedChordRow .notationChordCard,
+  .notationUnifiedChordRow .notationChordHead {
+    background: #ffffff !important;
+  }
+
+  .notationUnifiedChordHeader {
+    display: none !important;
+  }
+
+  .notationUnifiedChordSection,
+  .notationUnifiedChordRow .notationChordCard,
+  .notationUnifiedChordRow .notationChordHead {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .notationUnifiedChordRow .notationChordHead {
+    border-bottom: 0 !important;
+  }
+
+  .notationUnifiedHeader {
+    border-bottom-color: #8a8a8a;
+  }
+
+  .notationSheet {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: #ffffff;
+  }
+
+  .notationPaperCard,
+  .notationSystem,
+  .notationPitchGrid,
+  .notationSystemGrid {
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border-color: #676767;
+  }
+
+  .notationSystem {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 8px;
+  }
+
+  .notationSystemGuide.minor {
+    background: rgba(40, 40, 40, 0.16);
+  }
+
+  .notationSystemGuide.major {
+    background: rgba(20, 20, 20, 0.45);
+  }
+
+  .notationTechniqueCurve,
+  .notationTechniquePalm,
+  .notationStaffHead,
+  .notationStaffStem,
+  .notationStaffFlag,
+  .notationStaffDot {
+    color: #000000;
+    stroke: #000000;
+    border-color: #000000;
+    background: #000000;
+  }
+
+  .notationStaffHead.hollow,
+  .notationStaffHead.harmonic {
+    background: #ffffff;
+  }
 }
 
 /* Dedicated tones page */

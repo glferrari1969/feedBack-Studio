@@ -1,0 +1,77 @@
+name: Windows alpha installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version without the leading v
+        required: true
+        default: 0.1.0-alpha.1
+  push:
+    tags:
+      - "v*-alpha.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUTF8: "1"
+      VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Normalize version
+        shell: pwsh
+        run: |
+          $version = "${env:VERSION}" -replace '^v', ''
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-core.txt
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build and smoke-test installer
+        shell: pwsh
+        run: |
+          .\packaging\windows\build-installer.ps1 `
+            -Version $env:VERSION `
+            -Python python `
+            -Iscc "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: feedBack-Studio-${{ env.VERSION }}-Windows-x64
+          path: release/feedBack-Studio-${{ env.VERSION }}-Windows-x64-Setup.exe
+          if-no-files-found: error
+
+      - name: Publish prerelease for tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            "release/feedBack-Studio-$env:VERSION-Windows-x64-Setup.exe" `
+            --prerelease `
+            --generate-notes `
+            --title "feedBack Studio $env:VERSION"

@@ -14,6 +14,22 @@ start_desktop.bat
 
 This builds the frontend, starts the backend, and opens feedBack Studio in a native desktop window.
 
+### Windows alpha installer
+
+Pre-release Windows installers are published on the repository's **Releases** page. Download the file named `feedBack-Studio-<version>-Windows-x64-Setup.exe`, run it, and launch **feedBack Studio** from the Start menu. The installer is per-user, does not require Python or Node.js to be installed, and includes the frontend, backend, FFmpeg, and vgmstream.
+
+The installer offers an optional **AI stem separation and lyric transcription** component. Selecting it downloads a private Python runtime and the large AI dependencies during setup, without requiring manual commands or a system-wide Python installation. AI models are still downloaded the first time the corresponding feature is used. The normal editors and converters remain available when this optional component is skipped.
+
+The alpha installer is currently unsigned, so Windows SmartScreen may show an **Unknown publisher** warning.
+
+Application working data is stored under `%LOCALAPPDATA%\feedBack Studio`. Uninstalling the application uses the standard Windows **Installed apps** page.
+
+To build the installer locally, install Python 3.11, Node.js, and Inno Setup 6, then run:
+
+```powershell
+.\packaging\windows\build-installer.ps1 -Version 0.1.0-alpha.1
+```
+
 ### Frontend + backend (development)
 
 ```powershell
@@ -71,6 +87,10 @@ http://localhost:8000/api/health
 - Metadata editing for artist, album, title, year, cover art, technical fields, and references.
 - Arrangement editing with waveform, sync points, tab/piano roll, score view, and tone chains.
 - Import, replace, and export arrangements as MIDI or MusicXML.
+- Notation workspace with arrangement-specific rendering:
+   - Guitar/Bass: MusicXML staff + TAB and chord diagrams.
+   - Piano/Keys: plain MusicXML score rendering (no compact lane).
+   - Drums: dedicated percussion-staff score with legend and timing guides.
 - Lyrics / karaoke editing with waveform markers, advanced pasted-text alignment, re-sync, transcription, and job progress.
 - Tone editing with automatic stem-based tone identification, an audio waveform, integrated tone-sync lane, zoomable timing markers, effect chains, graphical gear controls, text parameters, and raw JSON.
 - Safe save workflow with one explicit write-to-original action.
@@ -113,7 +133,26 @@ The top-right menu follows the main editing flow in this order:
    - Export the selected arrangement as MIDI or MusicXML.
    - Editor changes remain pending until **Write to original feedpak** is used.
 
-5. **Lyrics / karaoke**
+5. **Drums**
+
+   ![Drum editor tab](docs/screenshots/drums.png)
+
+   - Edit dedicated drum arrangements in either lane-chart or step-sequencer mode.
+   - Switch between RB4, Phase Shift 8, and full electronic-kit lane presets.
+   - Quantize hits, move them on the timing grid, and review the drum-piece legend.
+   - Import, replace, or export drum arrangements as MIDI or MusicXML.
+
+6. **Notation**
+
+   ![Notation tab](docs/screenshots/notation.png)
+
+   - Open the notation-focused workspace for the selected arrangement.
+   - Guitar/Bass: review standard notation + TAB with chord diagrams.
+   - Piano/Keys: review plain MusicXML score rendering.
+   - Drums: review percussion-staff notation with legend and timing guides.
+   - Export notation directly to PDF with the project header.
+
+7. **Lyrics / karaoke**
 
    ![Lyrics and karaoke tab](docs/screenshots/lyrics-karaoke.png)
 
@@ -124,7 +163,7 @@ The top-right menu follows the main editing flow in this order:
    - Use **Recognise lyrics** to transcribe and synchronize from audio. Running it again replaces the current lyric text and synchronization with the newly recognized result; save the current version first if it must be retained.
    - Lyrics changes are saved together with the project by **Write to original feedpak**.
 
-6. **Tones**
+8. **Tones**
 
    ![Tones tab](docs/screenshots/tones.png)
 

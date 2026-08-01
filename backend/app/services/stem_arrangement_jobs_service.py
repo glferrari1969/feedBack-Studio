@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 
+DRUM_TAB_ARRANGEMENT_ID = "__drum_tab__"
+
+
 @dataclass(frozen=True)
 class StemArrangementJobsDeps:
     jobs: dict[str, dict[str, Any]]
@@ -638,6 +641,74 @@ def _event_notes_to_wire(name: str, instrument: str, events: list[dict[str, floa
     return wire
 
 
+def _pitch_to_drum_piece(pitch: int) -> str:
+    mapping = {
+        35: "kick",
+        36: "kick",
+        37: "snare_xstick",
+        38: "snare",
+        40: "snare",
+        41: "tom_floor",
+        42: "hh_closed",
+        43: "tom_low",
+        44: "hh_pedal",
+        45: "tom_mid",
+        46: "hh_open",
+        47: "tom_mid",
+        48: "tom_hi",
+        49: "crash_l",
+        50: "tom_hi",
+        51: "ride",
+        52: "china",
+        53: "ride_bell",
+        55: "splash",
+        57: "crash_r",
+        59: "ride",
+        80: "bell",
+    }
+    if pitch in mapping:
+        return mapping[pitch]
+
+    if pitch < 37:
+        return "kick"
+    if pitch < 41:
+        return "snare"
+    if pitch < 46:
+        return "tom_low"
+    if pitch < 50:
+        return "hh_closed"
+    if pitch < 54:
+        return "crash_l"
+    return "ride"
+
+
+def _drum_events_to_drum_tab(name: str, events: list[dict[str, float | int]]) -> dict:
+    hits: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    ordered_pieces: list[str] = []
+
+    for event in sorted(events, key=lambda item: (float(item.get("start", 0.0) or 0.0), int(item.get("pitch", 60) or 60))):
+        pitch = int(event.get("pitch", 60) or 60)
+        piece = _pitch_to_drum_piece(pitch)
+        if piece not in seen:
+            seen.add(piece)
+            ordered_pieces.append(piece)
+
+        start = round(max(0.0, float(event.get("start", 0.0) or 0.0)), 3)
+        velocity = max(1, min(127, int(event.get("velocity", 100) or 100)))
+        hit: dict[str, Any] = {"t": start, "p": piece}
+        if velocity != 100:
+            hit["v"] = velocity
+        hits.append(hit)
+
+    return {
+        "version": 1,
+        "name": (name or "Drums").strip() or "Drums",
+        "kit": [{"id": piece, "name": piece.replace("_", " ").title()} for piece in ordered_pieces],
+        "hits": hits,
+    }
+
+
 def _write_midi_from_notes(notes: list[tuple[float, float, int]], out_path: Path, *, bpm: float, mido_module: Any) -> None:
     if mido_module is None:
         raise RuntimeError("MIDI generation requires mido in backend requirements.")
@@ -749,7 +820,7 @@ def build_stem_arrangement_processor(deps: StemArrangementJobsDeps) -> Callable[
                     numpy_module=deps.numpy_module,
                 )
                 job.update(status="running", step=f"Building drum arrangement from {resolved_stem_id}", progress=62)
-                wire = _event_notes_to_wire(arrangement_label, "drums", drum_events)
+                drum_tab = _drum_events_to_drum_tab(arrangement_label, drum_events)
 
             if target_instrument in ("guitar", "bass") and transcription_notes:
                 job.update(status="running", step=f"Matching {resolved_stem_id} tone chain", progress=76)
@@ -767,29 +838,44 @@ def build_stem_arrangement_processor(deps: StemArrangementJobsDeps) -> Callable[
                 annotated_tones = deps.annotate_tone_block_with_vst(tone_block)
                 wire["tones"] = annotated_tones if isinstance(annotated_tones, dict) else tone_block
 
-            arrangement_id = (
-                arrangement_label.lower().replace(" ", "_") + "_" + uuid.uuid4().hex[:6]
-            )
-            arrangement_rel = f"arrangements/{arrangement_id}.json"
-            (source_dir / arrangement_rel).parent.mkdir(parents=True, exist_ok=True)
-            (source_dir / arrangement_rel).write_text(
-                json.dumps(wire, separators=(",", ":")),
-                encoding="utf-8",
-            )
+            if target_instrument == "drums":
+                drum_rel = str(manifest.get("drum_tab") or "drum_tab.json").strip() or "drum_tab.json"
+                drum_path = (source_dir / drum_rel).resolve()
+                try:
+                    drum_path.relative_to(source_dir.resolve())
+                except Exception:
+                    raise RuntimeError("Invalid drum_tab path in manifest")
+                drum_path.parent.mkdir(parents=True, exist_ok=True)
+                drum_path.write_text(
+                    json.dumps(drum_tab, separators=(",", ":"), ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                manifest["drum_tab"] = drum_rel
+                arrangement_id = DRUM_TAB_ARRANGEMENT_ID
+            else:
+                arrangement_id = (
+                    arrangement_label.lower().replace(" ", "_") + "_" + uuid.uuid4().hex[:6]
+                )
+                arrangement_rel = f"arrangements/{arrangement_id}.json"
+                (source_dir / arrangement_rel).parent.mkdir(parents=True, exist_ok=True)
+                (source_dir / arrangement_rel).write_text(
+                    json.dumps(wire, separators=(",", ":")),
+                    encoding="utf-8",
+                )
 
-            manifest_arrangements = manifest.setdefault("arrangements", [])
-            tuning = wire.get("tuning", [0, 0, 0, 0, 0, 0])
-            manifest_arrangements.append(
-                {
-                    "id": arrangement_id,
-                    "name": wire.get("name", arrangement_label),
-                    "file": arrangement_rel,
-                    "tuning": tuning,
-                    "capo": wire.get("capo", 0),
-                    "type": target_instrument,
-                    "source": f"stem:{resolved_stem_id}",
-                }
-            )
+                manifest_arrangements = manifest.setdefault("arrangements", [])
+                tuning = wire.get("tuning", [0, 0, 0, 0, 0, 0])
+                manifest_arrangements.append(
+                    {
+                        "id": arrangement_id,
+                        "name": wire.get("name", arrangement_label),
+                        "file": arrangement_rel,
+                        "tuning": tuning,
+                        "capo": wire.get("capo", 0),
+                        "type": target_instrument,
+                        "source": f"stem:{resolved_stem_id}",
+                    }
+                )
             deps.write_manifest(source_dir, manifest)
 
             previous_project = deps.read_json_if_exists(source_dir.parent / "project.json", {})

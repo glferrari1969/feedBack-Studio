@@ -25,8 +25,115 @@ except Exception:
     tuning_name_from_offsets = None
     tuning_offsets_from_midis = None
 
+try:
+    from drums import piece_to_default_midi  # type: ignore
+except Exception:
+    piece_to_default_midi = None
+
 
 NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+DRUM_TAB_ARRANGEMENT_ID = "__drum_tab__"
+
+_DRUM_PITCH_FALLBACK = {
+    "kick": 36,
+    "snare": 38,
+    "snare_xstick": 37,
+    "tom_hi": 50,
+    "tom_mid": 47,
+    "tom_low": 43,
+    "tom_floor": 41,
+    "hh_closed": 42,
+    "hh_open": 46,
+    "hh_pedal": 44,
+    "stack": 30,
+    "crash_l": 49,
+    "crash_r": 57,
+    "splash": 55,
+    "china": 52,
+    "ride": 51,
+    "ride_bell": 53,
+    "bell": 80,
+}
+
+
+def load_drum_tab(source_dir: Path, manifest: dict) -> dict | None:
+    rel = manifest.get("drum_tab")
+    if not isinstance(rel, str) or not rel.strip():
+        return None
+    try:
+        path = (source_dir / rel).resolve()
+        path.relative_to(source_dir.resolve())
+    except Exception:
+        return None
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if not isinstance(payload.get("hits"), list):
+        return None
+    return payload
+
+
+def _drum_piece_pitch(piece_id: str) -> int:
+    if piece_to_default_midi:
+        try:
+            default_midis = piece_to_default_midi(piece_id)
+            if isinstance(default_midis, list) and default_midis:
+                return int(default_midis[0])
+        except Exception:
+            pass
+    return int(_DRUM_PITCH_FALLBACK.get(piece_id, 36))
+
+
+def _drum_hit_to_note(raw: dict, arrangement_id: str) -> dict | None:
+    piece_id = raw.get("p")
+    if not isinstance(piece_id, str) or not piece_id:
+        return None
+    try:
+        start = max(0.0, float(raw.get("t", 0) or 0))
+    except Exception:
+        return None
+    velocity_raw = raw.get("v", 100)
+    try:
+        velocity = int(velocity_raw)
+    except Exception:
+        velocity = 100
+    velocity = max(1, min(127, velocity))
+    try:
+        choke = float(raw.get("k")) if raw.get("k") not in (None, "") else 0.12
+    except Exception:
+        choke = 0.12
+    duration = max(0.03, min(2.0, choke))
+    pitch = max(0, min(127, _drum_piece_pitch(piece_id)))
+    return {
+        "id": str(uuid.uuid4()),
+        "trackId": arrangement_id,
+        "pitch": pitch,
+        "start": round(start, 4),
+        "duration": round(duration, 4),
+        "velocity": velocity,
+        "string": 1,
+        "fret": max(0, min(24, pitch - 36)),
+        "techniques": {},
+    }
+
+
+def extract_notes_from_drum_tab(source_dir: Path, manifest: dict, arrangement_id: str) -> list[dict]:
+    drum_tab = load_drum_tab(source_dir, manifest)
+    if not drum_tab:
+        return []
+    notes: list[dict] = []
+    for raw in drum_tab.get("hits", []) or []:
+        if not isinstance(raw, dict):
+            continue
+        note = _drum_hit_to_note(raw, arrangement_id)
+        if note:
+            notes.append(note)
+    return sorted(notes, key=lambda item: (item["start"], item["pitch"]))[:8000]
 
 
 def _first_manifest_value(manifest: dict, keys: list[str]) -> Any:
@@ -147,6 +254,8 @@ def metadata_from_manifest(
 
 def normalize_stem_id(value: str, stem_order: list[str]) -> str:
     lowered = value.lower()
+    if "keys" in lowered or "keyboard" in lowered:
+        return "piano"
     for key in stem_order:
         if key in lowered:
             return key
@@ -155,6 +264,13 @@ def normalize_stem_id(value: str, stem_order: list[str]) -> str:
 
 def build_stems(project_id: str, source_dir: Path, manifest: dict, *, stem_order: list[str]) -> list[dict]:
     stems = []
+
+    def normalize_stem_kind(stem_id: str) -> str:
+        lowered = stem_id.lower()
+        if lowered in {"keys", "keyboard"}:
+            return "piano"
+        return lowered
+
     for entry in manifest.get("stems", []) or []:
         if not isinstance(entry, dict):
             continue
@@ -162,7 +278,8 @@ def build_stems(project_id: str, source_dir: Path, manifest: dict, *, stem_order
         rel = str(entry.get("file") or "")
         if not rel or not (source_dir / rel).exists():
             continue
-        kind = sid if sid in ["vocals", "drums", "bass", "guitar", "piano", "other", "full"] else "mix"
+        normalized_sid = normalize_stem_kind(sid)
+        kind = normalized_sid if normalized_sid in ["vocals", "drums", "bass", "guitar", "piano", "other", "full"] else "mix"
         stems.append(
             {
                 "id": sid,
@@ -179,7 +296,8 @@ def build_stems(project_id: str, source_dir: Path, manifest: dict, *, stem_order
             if p.suffix.lower() not in [".wav", ".ogg", ".mp3", ".flac"]:
                 continue
             sid = normalize_stem_id(p.name, stem_order)
-            kind = sid if sid in ["vocals", "drums", "bass", "guitar", "piano", "other", "full"] else "mix"
+            normalized_sid = normalize_stem_kind(sid)
+            kind = normalized_sid if normalized_sid in ["vocals", "drums", "bass", "guitar", "piano", "other", "full"] else "mix"
             rel = p.relative_to(source_dir).as_posix()
             stems.append(
                 {
@@ -207,7 +325,7 @@ def infer_arrangement_type(entry: dict, data: Optional[dict] = None) -> str:
     if any(x in raw for x in ["vocal", "lyrics"]):
         return "vocals"
     if any(x in raw for x in ["piano", "keys", "keyboard"]):
-        return "piano"
+        return "keys"
     if any(x in raw for x in ["drum"]):
         return "drums"
     if data:
@@ -315,6 +433,7 @@ def load_arrangement_wire(source_dir: Path, rel: str) -> dict:
 
 
 def arrangement_infos(source_dir: Path, manifest: dict) -> list[dict]:
+    drum_tab = load_drum_tab(source_dir, manifest)
     out = []
     for i, entry in enumerate(manifest.get("arrangements", []) or []):
         aid = str(entry.get("id") or f"arr-{i}")
@@ -323,6 +442,9 @@ def arrangement_infos(source_dir: Path, manifest: dict) -> list[dict]:
         data = load_arrangement_wire(source_dir, rel)
         note_count = len(data.get("notes", []) or []) + len(data.get("chords", []) or []) if data else 0
         typ = infer_arrangement_type(entry, data)
+        if drum_tab and typ == "drums":
+            # drum_tab is the canonical single-source representation for drums.
+            continue
         tuning = normalize_tuning(entry.get("tuning") or data.get("tuning"), typ)
         tuning_name = nominal_tuning_name(tuning, typ) if tuning else None
         info = {"id": aid, "name": name, "type": typ, "file": rel, "noteCount": note_count}
@@ -340,6 +462,19 @@ def arrangement_infos(source_dir: Path, manifest: dict) -> list[dict]:
             except Exception:
                 pass
         out.append(info)
+
+    if drum_tab:
+        hits = drum_tab.get("hits") or []
+        out.append(
+            {
+                "id": DRUM_TAB_ARRANGEMENT_ID,
+                "name": str(drum_tab.get("name") or "Drums"),
+                "type": "drums",
+                "file": str(manifest.get("drum_tab") or ""),
+                "noteCount": len(hits) if isinstance(hits, list) else 0,
+                "source": "drum_tab",
+            }
+        )
     return out
 
 
@@ -356,6 +491,9 @@ def technique_flags(raw: dict) -> dict:
 
 
 def extract_notes_from_arrangement(source_dir: Path, manifest: dict, arrangement_id: str) -> list[dict]:
+    if arrangement_id == DRUM_TAB_ARRANGEMENT_ID:
+        return extract_notes_from_drum_tab(source_dir, manifest, arrangement_id)
+
     entry = next((a for a in manifest.get("arrangements", []) or [] if str(a.get("id")) == arrangement_id), None)
     if not entry:
         return []

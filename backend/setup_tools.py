@@ -41,15 +41,14 @@ def ensure_ffmpeg() -> bool:
         log(f"ffmpeg gia' presente: {local}")
         return True
 
-    on_path = shutil.which("ffmpeg")
-    if on_path:
-        log(f"ffmpeg trovato nel PATH: {on_path}")
-        return True
-
     try:
         import imageio_ffmpeg  # type: ignore
     except Exception as exc:
         log(f"imageio-ffmpeg non disponibile: {exc}")
+        on_path = shutil.which("ffmpeg")
+        if on_path:
+            log(f"ffmpeg trovato nel PATH: {on_path}")
+            return True
         return False
 
     try:
@@ -65,6 +64,10 @@ def ensure_ffmpeg() -> bool:
         return True
     except Exception as exc:
         log(f"installazione ffmpeg fallita: {exc}")
+        on_path = shutil.which("ffmpeg")
+        if on_path:
+            log(f"uso ffmpeg dal PATH come fallback: {on_path}")
+            return True
         return False
 
 

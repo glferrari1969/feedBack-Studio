@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="feedBack Studio professional audio icon">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#07111f" />
+      <stop offset="60%" stop-color="#123a7a" />
+      <stop offset="100%" stop-color="#6d28d9" />
+    </linearGradient>
+    <filter id="mark-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="2.5" flood-color="#020617" flood-opacity="0.34" />
+    </filter>
+  </defs>
+  <rect x="18" y="18" width="220" height="220" rx="56" fill="url(#bg)" />
+  <!-- Mixer panel, offset toward the upper-left corner -->
+  <g transform="translate(-12 -12)">
+    <rect x="64" y="58" width="128" height="140" rx="24" fill="#0f172a" opacity="0.94" />
+    <rect x="78" y="72" width="100" height="112" rx="18" fill="#f8fafc" />
+    <rect x="92" y="90" width="14" height="54" rx="7" fill="#111827" />
+    <rect x="116" y="80" width="14" height="64" rx="7" fill="#2563eb" />
+    <rect x="140" y="96" width="14" height="48" rx="7" fill="#7c3aed" />
+    <rect x="92" y="150" width="62" height="8" rx="4" fill="#64748b" />
+  </g>
+
+  <!-- Stylized central mark from the feedBack wordmark -->
+  <path
+    d="M230 174 304 208 270 249 329 283 255 339 269 300 245 272 237 317 182 333 193 280 229 277Z"
+    fill="#22d3ee"
+    filter="url(#mark-shadow)"
+    transform="translate(47 47) scale(.5) translate(255 257) scale(1.5) translate(-255 -257)"
+  />
+
+</svg>

@@ -24,6 +24,7 @@ export function ArrangementSelector({
   renaming = false,
 }: Props) {
   const selectedArrangement = arrangements.find((arrangement) => arrangement.id === selectedId);
+  const canDuplicate = selectedArrangement?.type !== 'drums';
 
   const deleteCurrent = async () => {
     if (!selectedArrangement || !onDeleteCurrent) return;
@@ -89,7 +90,7 @@ export function ArrangementSelector({
         <button
           type="button"
           className="secondaryButton"
-          disabled={!selectedArrangement || !onDuplicateCurrent || deleting || duplicating || renaming}
+          disabled={!selectedArrangement || !onDuplicateCurrent || !canDuplicate || deleting || duplicating || renaming}
           onClick={() => {
             void duplicateCurrent();
           }}

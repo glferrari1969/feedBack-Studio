@@ -4,13 +4,17 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict
 
+from app.optional_runtime import configure_optional_ai_runtime, resolve_data_root
+
 APP_ROOT = Path(__file__).resolve().parents[1]
 LIB_ROOT = APP_ROOT / "lib"
 PROJECT_ROOT = APP_ROOT.parent
 FRONTEND_DIST = PROJECT_ROOT / "dist"
 FRONTEND_INDEX = FRONTEND_DIST / "index.html"
 
-DEFAULT_WORKSPACE = APP_ROOT / "workspace"
+DATA_ROOT = resolve_data_root(APP_ROOT)
+configure_optional_ai_runtime(DATA_ROOT)
+DEFAULT_WORKSPACE = DATA_ROOT / "workspace"
 DEFAULT_WORKSPACE.mkdir(parents=True, exist_ok=True)
 # feedBack Studio keeps all editable working copies inside this backend folder.
 # The original user file is never used as a workspace; it is touched only by
