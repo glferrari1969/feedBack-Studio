@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Normalize version
         shell: pwsh
@@ -33,13 +33,13 @@ jobs:
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -58,7 +58,7 @@ jobs:
             -Iscc "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
 
       - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: feedBack-Studio-${{ env.VERSION }}-Windows-x64
           path: release/feedBack-Studio-${{ env.VERSION }}-Windows-x64-Setup.exe

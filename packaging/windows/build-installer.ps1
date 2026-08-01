@@ -18,12 +18,27 @@ Push-Location $repoRoot
 try {
     if (-not $SkipDependencies) {
         npm ci
+        if ($LASTEXITCODE -ne 0) {
+            throw "npm ci failed with exit code $LASTEXITCODE"
+        }
         & $Python -m pip install --upgrade pip
+        if ($LASTEXITCODE -ne 0) {
+            throw "pip upgrade failed with exit code $LASTEXITCODE"
+        }
         & $Python -m pip install -r "backend\requirements-core.txt" pyinstaller uv
+        if ($LASTEXITCODE -ne 0) {
+            throw "Core dependency installation failed with exit code $LASTEXITCODE"
+        }
     }
 
     npm run build
+    if ($LASTEXITCODE -ne 0) {
+        throw "Frontend build failed with exit code $LASTEXITCODE"
+    }
     & $Python "backend\setup_tools.py"
+    if ($LASTEXITCODE -ne 0) {
+        throw "FFmpeg setup failed with exit code $LASTEXITCODE"
+    }
 
     & $Python -m PyInstaller `
         --noconfirm `
@@ -31,6 +46,9 @@ try {
         --distpath $windowsBuild `
         --workpath $pyinstallerWork `
         $specPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "PyInstaller failed with exit code $LASTEXITCODE"
+    }
 
     $uvPath = (& $Python -c "import shutil; print(shutil.which('uv') or '')").Trim()
     if (-not $uvPath -or -not (Test-Path -LiteralPath $uvPath)) {
@@ -62,13 +80,43 @@ try {
         throw "Inno Setup 6 compiler (ISCC.exe) was not found."
     }
 
-    New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
-    & $Iscc "/DMyAppVersion=$Version" $issPath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Inno Setup failed with exit code $LASTEXITCODE"
+    $installerName = "feedBack-Studio-$Version-Windows-x64-Setup.exe"
+    $temporaryInstallerRoot = Join-Path `
+        ([System.IO.Path]::GetTempPath()) `
+        ("feedbackstudio-installer-" + [System.Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $temporaryInstallerRoot | Out-Null
+    try {
+        & $Iscc "/DMyAppVersion=$Version" "/O$temporaryInstallerRoot" $issPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup failed with exit code $LASTEXITCODE"
+        }
+
+        $compiledInstaller = Join-Path $temporaryInstallerRoot $installerName
+        if (-not (Test-Path -LiteralPath $compiledInstaller)) {
+            throw "Inno Setup did not create the expected installer: $compiledInstaller"
+        }
+
+        New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
+        Copy-Item `
+            -LiteralPath $compiledInstaller `
+            -Destination (Join-Path $releaseRoot $installerName) `
+            -Force
+    } finally {
+        $systemTemp = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
+        $resolvedTemporaryInstallerRoot = [System.IO.Path]::GetFullPath($temporaryInstallerRoot)
+        if ($resolvedTemporaryInstallerRoot.StartsWith($systemTemp, [System.StringComparison]::OrdinalIgnoreCase) -and
+            (Split-Path -Leaf $resolvedTemporaryInstallerRoot).StartsWith("feedbackstudio-installer-")) {
+            Remove-Item -LiteralPath $resolvedTemporaryInstallerRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 
-    Get-ChildItem -LiteralPath $releaseRoot -Filter "feedBack-Studio-$Version-Windows-x64-Setup.exe"
+    Get-Item -LiteralPath (Join-Path $releaseRoot $installerName)
+} catch {
+    if ($env:GITHUB_ACTIONS -eq "true") {
+        $annotationMessage = $_.Exception.Message.Replace("`r", " ").Replace("`n", " ")
+        Write-Host "::error title=Windows installer build failed::$annotationMessage"
+    }
+    throw
 } finally {
     Pop-Location
 }
