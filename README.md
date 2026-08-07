@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/glferrari1969/feedBack-Studio/releases/download/v0.1.0-alpha.4/feedBack-Studio-0.1.0-alpha.4-Windows-x64-Setup.exe"><strong>Download Windows installer - v0.1.0-alpha.4</strong></a><br />
-  <sub>Installer alfa x64 | nessuna installazione manuale di Python o Node.js</sub>
+  <sub>x64 alpha installer | no manual Python or Node.js installation required</sub>
 </p>
 
 feedBack Studio is a local web editor for feedpak projects, Rocksmith PSARC imports, MP3/audio-to-feedpak conversion, tablature editing, score viewing, tone chains, stems, and audio synchronization.
