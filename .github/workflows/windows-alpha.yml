@@ -70,8 +70,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME `
-            "release/feedBack-Studio-$env:VERSION-Windows-x64-Setup.exe" `
-            --prerelease `
-            --generate-notes `
-            --title "feedBack Studio $env:VERSION"
+          $installer = "release/feedBack-Studio-$env:VERSION-Windows-x64-Setup.exe"
+          if (gh release view $env:GITHUB_REF_NAME 2>$null) {
+            gh release upload $env:GITHUB_REF_NAME $installer --clobber
+            gh release edit $env:GITHUB_REF_NAME `
+              --prerelease `
+              --notes-file CHANGELOG.md `
+              --title "feedBack Studio $env:VERSION"
+          } else {
+            gh release create $env:GITHUB_REF_NAME $installer `
+              --prerelease `
+              --notes-file CHANGELOG.md `
+              --title "feedBack Studio $env:VERSION"
+          }
