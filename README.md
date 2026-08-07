@@ -5,7 +5,7 @@
 <h1 align="center">feedBack Studio</h1>
 
 <p align="center">
-  <a href="https://github.com/glferrari1969/feedBack-Studio/releases/download/v0.1.0-alpha.4/feedBack-Studio-0.1.0-alpha.4-Windows-x64-Setup.exe"><strong>Download installer Windows - v0.1.0-alpha.4</strong></a><br />
+  <a href="https://github.com/glferrari1969/feedBack-Studio/releases/download/v0.1.0-alpha.4/feedBack-Studio-0.1.0-alpha.4-Windows-x64-Setup.exe"><strong>Download Windows installer - v0.1.0-alpha.4</strong></a><br />
   <sub>Installer alfa x64 | nessuna installazione manuale di Python o Node.js</sub>
 </p>
 
