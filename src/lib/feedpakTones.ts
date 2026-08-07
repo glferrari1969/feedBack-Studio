@@ -1,4 +1,4 @@
-import type { ToneBlock, ToneChange } from "../types/music";
+﻿import type { ToneBlock, ToneChange } from "../types/music";
 
 export type ToneDefinition = Record<string, unknown>;
 export type GearRecord = Record<string, unknown>;
@@ -7,7 +7,7 @@ export type GearPath =
   | { kind: "array"; index: number }
   | { kind: "object"; key: string };
 
-export interface SloppackGearEntry {
+export interface FeedpakGearEntry {
   path: GearPath;
   gear: GearRecord;
   originalValue: unknown;
@@ -63,9 +63,9 @@ export function setToneName(definition: ToneDefinition, name: string): ToneDefin
   return next;
 }
 
-export function getSloppackGearList(definition?: ToneDefinition): unknown {
+export function getFeedpakGearList(definition?: ToneDefinition): unknown {
   if (!definition) return undefined;
-  // The sloppack tone schema stores the Rocksmith tone object verbatim.
+  // The Feedpak tone schema stores the Rocksmith tone object verbatim.
   // Its effect chain is the raw GearList member of each definition.
   if ("GearList" in definition) return definition.GearList;
   return undefined;
@@ -80,8 +80,8 @@ function primitiveGear(slot: string, value: unknown): GearRecord {
   };
 }
 
-export function getSloppackGearEntries(definition?: ToneDefinition): SloppackGearEntry[] {
-  const raw = getSloppackGearList(definition);
+export function getFeedpakGearEntries(definition?: ToneDefinition): FeedpakGearEntry[] {
+  const raw = getFeedpakGearList(definition);
   if (Array.isArray(raw)) {
     return raw.map((value, index) => {
       const slot = String(index + 1);
@@ -159,7 +159,7 @@ function stripInternalFields(gear: GearRecord): GearRecord {
   return next;
 }
 
-function updateGearListValue(raw: unknown, entry: SloppackGearEntry, nextGear: GearRecord): unknown {
+function updateGearListValue(raw: unknown, entry: FeedpakGearEntry, nextGear: GearRecord): unknown {
   const cleaned = stripInternalFields(nextGear);
   if (Array.isArray(raw) && entry.path.kind === "array") {
     const targetIndex = entry.path.index;
@@ -171,16 +171,16 @@ function updateGearListValue(raw: unknown, entry: SloppackGearEntry, nextGear: G
   return raw;
 }
 
-export function updateSloppackGearEntry(definition: ToneDefinition, entry: SloppackGearEntry, nextGear: GearRecord): ToneDefinition {
+export function updateFeedpakGearEntry(definition: ToneDefinition, entry: FeedpakGearEntry, nextGear: GearRecord): ToneDefinition {
   const next = { ...definition };
-  const raw = getSloppackGearList(definition);
+  const raw = getFeedpakGearList(definition);
   next.GearList = updateGearListValue(raw, entry, nextGear);
   return next;
 }
 
-export function addSloppackGear(definition: ToneDefinition, index: number): ToneDefinition {
+export function addFeedpakGear(definition: ToneDefinition, index: number): ToneDefinition {
   const next = { ...definition };
-  const raw = getSloppackGearList(definition);
+  const raw = getFeedpakGearList(definition);
   const created: GearRecord = { Name: `Effect ${index + 1}`, Key: "", Type: "Pedal", Params: {} };
   if (Array.isArray(raw)) next.GearList = [...raw, created];
   else if (isRecord(raw)) next.GearList = { ...raw, [`Effect${index + 1}`]: created };
@@ -188,14 +188,14 @@ export function addSloppackGear(definition: ToneDefinition, index: number): Tone
   return next;
 }
 
-export function addSloppackGearRecord(
+export function addFeedpakGearRecord(
   definition: ToneDefinition,
   index: number,
   gear: GearRecord,
   objectKey?: string,
 ): ToneDefinition {
   const next = { ...definition };
-  const raw = getSloppackGearList(definition);
+  const raw = getFeedpakGearList(definition);
   const created = stripInternalFields(cloneJson(gear));
   if (Array.isArray(raw)) {
     next.GearList = [...raw, created];
@@ -208,9 +208,9 @@ export function addSloppackGearRecord(
   return next;
 }
 
-export function deleteSloppackGearEntry(definition: ToneDefinition, entry: SloppackGearEntry): ToneDefinition {
+export function deleteFeedpakGearEntry(definition: ToneDefinition, entry: FeedpakGearEntry): ToneDefinition {
   const next = { ...definition };
-  const raw = getSloppackGearList(definition);
+  const raw = getFeedpakGearList(definition);
   if (Array.isArray(raw) && entry.path.kind === "array") {
     const targetIndex = entry.path.index;
     next.GearList = raw.filter((_, index) => index !== targetIndex);
@@ -276,3 +276,4 @@ export function replaceDefinition(tones: ToneBlock | null | undefined, index: nu
   const definitions = getToneDefinitions(tones).map((item, itemIndex) => itemIndex === index ? definition : item);
   return { ...(tones ?? {}), definitions };
 }
+

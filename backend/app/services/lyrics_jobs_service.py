@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import subprocess
@@ -143,9 +143,9 @@ def build_lyrics_transcription_processor(deps: LyricsJobsDeps) -> Callable[..., 
             project = deps.build_project(project_id, source_dir, selected_arrangement=None)
             working_path = deps.pack_working_sloppack(source_dir, project)
             original_path = deps.project_original_save_path(source_dir, project)
-            project["workingSloppackPath"] = str(working_path)
-            project["sloppackPath"] = str(original_path)
-            project["originalSloppackPath"] = str(original_path)
+            project["workingFeedpakPath"] = str(working_path)
+            project["feedpakPath"] = str(original_path)
+            project["originalFeedpakPath"] = str(original_path)
             project["hasUncommittedChanges"] = True
             (source_dir.parent / "project.json").write_text(json.dumps(project, indent=2, ensure_ascii=False), encoding="utf-8")
             job.update(status="done", step="Lyrics transcription completed", progress=100, project=project)
@@ -196,9 +196,9 @@ def build_lyrics_text_sync_processor(deps: LyricsJobsDeps) -> Callable[..., None
             job.update(status="running", step="Updating working copy", progress=96)
             working_path = deps.pack_working_sloppack(source_dir, project)
             original_path = deps.project_original_save_path(source_dir, project)
-            project["workingSloppackPath"] = str(working_path)
-            project["sloppackPath"] = str(original_path)
-            project["originalSloppackPath"] = str(original_path)
+            project["workingFeedpakPath"] = str(working_path)
+            project["feedpakPath"] = str(original_path)
+            project["originalFeedpakPath"] = str(original_path)
             project["hasUncommittedChanges"] = True
             (source_dir.parent / "project.json").write_text(
                 json.dumps(project, indent=2, ensure_ascii=False),
@@ -209,3 +209,5 @@ def build_lyrics_text_sync_processor(deps: LyricsJobsDeps) -> Callable[..., None
             job.update(status="error", step="Lyrics synchronization failed", error=str(exc), progress=100)
 
     return process_lyrics_text_sync_job
+
+

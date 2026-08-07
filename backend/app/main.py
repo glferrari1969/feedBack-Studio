@@ -86,6 +86,7 @@ from app.services.storage_service import (
     unpack_sloppack as unpack_sloppack_service,
 )
 from app.services.open_jobs_service import OpenJobsDeps, build_open_jobs_processors
+from app.services.arrangement_autosync_jobs_service import ArrangementAutoSyncJobsDeps, build_arrangement_autosync_processor
 from app.services.stem_arrangement_jobs_service import StemArrangementJobsDeps, build_stem_arrangement_processor, build_stem_tone_processor
 from app.services.sync_analysis_service import (
     generate_mp3_sync_files as generate_mp3_sync_files_service,
@@ -173,7 +174,7 @@ def choose_local_input_file(mode: str) -> Path | None:
     """Open a native file picker from the local backend process.
 
     A standard browser file input intentionally hides the real path, so it
-    cannot be used to overwrite C:\\...\\song.sloppack later. feedBack Studio is a
+    cannot be used to overwrite C:\\...\\song.feedpak later. feedBack Studio is a
     local app, so the reliable workflow is: ask the backend to open the native
     dialog, keep the selected absolute path, and commit back to that exact path.
     """
@@ -190,9 +191,9 @@ def choose_local_input_file(mode: str) -> Path | None:
         root.attributes("-topmost", True)
         selected = filedialog.askopenfilename(
             title={
-                "sloppack": "Open sloppack",
+                "feedpak": "Open feedpak",
                 "psarc": "Convert PSARC",
-                "audio": "Create sloppack from audio",
+                "audio": "Create feedpak from audio",
             }.get(mode, "Open file"),
             filetypes=FILE_DIALOG_TYPES[mode],
         )
@@ -393,7 +394,7 @@ def ensure_full_ogg_for_single_mix(source_dir: Path, job: Optional[Dict[str, Any
             source_audio = sorted(audio_files, key=lambda p: p.stat().st_size, reverse=True)[0]
 
     if source_audio is None:
-        raise RuntimeError("Impossibile creare stems/full.ogg: nessun audio full/mix trovato nello sloppack.")
+        raise RuntimeError("Impossibile creare stems/full.ogg: nessun audio full/mix trovato nel feedpak.")
 
     if job is not None:
         job.update(step="Creating full.ogg without stem separation", progress=max(int(job.get("progress", 0)), 82))
@@ -467,7 +468,7 @@ def resolve_converted_save_target(
 
 
 def _project_stem_path(source_dir: Path, manifest: dict, stem_id: str | None = None) -> tuple[Path | None, str]:
-    """Resolve a sloppack stem path by id, preferring vocals for lyric work."""
+    """Resolve a feedpak stem path by id, preferring vocals for lyric work."""
     stems = manifest.get("stems") or []
     candidates: list[tuple[str, Path]] = []
     if isinstance(stems, list):
@@ -792,6 +793,23 @@ process_stem_tone_job = build_stem_tone_processor(
     )
 )
 
+process_arrangement_autosync_job = build_arrangement_autosync_processor(
+    ArrangementAutoSyncJobsDeps(
+        jobs=jobs,
+        projects_by_id=projects_by_id,
+        load_manifest=load_manifest,
+        write_manifest=write_manifest,
+        load_arrangement_wire=load_arrangement_wire,
+        project_stem_path=_project_stem_path,
+        read_json_if_exists=read_json_if_exists,
+        pack_working_sloppack=pack_working_sloppack,
+        build_project=build_project,
+        project_original_save_path=project_original_save_path,
+        librosa_module=librosa,
+        numpy_module=np,
+    )
+)
+
 
 def persist_project_to_workdir(source_dir: Path, project: dict) -> None:
     persist_project_to_workdir_service(
@@ -840,6 +858,7 @@ app.include_router(
         process_lyrics_text_sync_job=process_lyrics_text_sync_job,
         process_stem_arrangement_job=process_stem_arrangement_job,
         process_stem_tone_job=process_stem_tone_job,
+        process_arrangement_autosync_job=process_arrangement_autosync_job,
         choose_local_input_file=choose_local_input_file,
         choose_local_output_dir=choose_local_output_dir,
         choose_local_batch_psarc_dir=choose_local_batch_psarc_dir,

@@ -142,7 +142,15 @@ def persist_project_to_workdir(
     annotate_tone_block_with_vst: Callable[[dict], dict],
 ) -> None:
     (source_dir.parent / "project.json").write_text(json.dumps(project, indent=2, ensure_ascii=False), encoding="utf-8")
-    (source_dir / "syncpoints.json").write_text(json.dumps(project.get("syncPoints", []), indent=2, ensure_ascii=False), encoding="utf-8")
+    sync_points_path = source_dir / "sync" / "syncpoints.json"
+    sync_points_path.parent.mkdir(parents=True, exist_ok=True)
+    sync_points_path.write_text(json.dumps(project.get("syncPoints", []), indent=2, ensure_ascii=False), encoding="utf-8")
+    legacy_sync_points = source_dir / "syncpoints.json"
+    if legacy_sync_points.exists():
+        try:
+            legacy_sync_points.unlink(missing_ok=True)
+        except Exception:
+            pass
     persist_project_metadata_to_manifest(
         source_dir,
         project,

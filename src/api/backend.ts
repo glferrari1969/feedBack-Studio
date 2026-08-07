@@ -1,4 +1,4 @@
-import type { ArrangementInfo, ProjectState, ToneBlock } from '../types/music';
+﻿import type { ArrangementInfo, ProjectState, ToneBlock } from '../types/music';
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '');
 
@@ -42,7 +42,7 @@ export async function createOpenJob(options: OpenOptions): Promise<string> {
 
 
 export interface OpenLocalOptions {
-  mode: 'sloppack' | 'psarc' | 'audio';
+  mode: 'feedpak' | 'psarc' | 'audio';
   outputDir: string;
 }
 
@@ -459,6 +459,25 @@ export async function createStemToneJob(
   return data.job_id;
 }
 
+export async function createArrangementAutoSyncJob(
+  projectId: string,
+  arrangementId: string,
+  stemId: string,
+): Promise<string> {
+  const response = await fetch(`${API_BASE}/api/jobs/arrangements/auto-sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      project_id: projectId,
+      arrangement_id: arrangementId,
+      stem_id: stemId,
+    }),
+  });
+  if (!response.ok) throw new Error(await response.text());
+  const data = await response.json() as { job_id: string };
+  return data.job_id;
+}
+
 export async function importTextLyricsSync(projectId: string, textOrFile: string | File, stemId?: string): Promise<ProjectState> {
   const form = new FormData();
   if (typeof textOrFile === 'string') {
@@ -477,3 +496,4 @@ export function resolveAssetUrl(url?: string): string | undefined {
   if (url.startsWith('http')) return url;
   return `${API_BASE}${url}`;
 }
+

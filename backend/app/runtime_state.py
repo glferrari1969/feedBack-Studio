@@ -18,7 +18,7 @@ DEFAULT_WORKSPACE = DATA_ROOT / "workspace"
 DEFAULT_WORKSPACE.mkdir(parents=True, exist_ok=True)
 # feedBack Studio keeps all editable working copies inside this backend folder.
 # The original user file is never used as a workspace; it is touched only by
-# the explicit "Write to original sloppack" commit action.
+# the explicit "Write to original feedpak" commit action.
 PROJECTS_ROOT = DEFAULT_WORKSPACE / "projects"
 PROJECTS_ROOT.mkdir(parents=True, exist_ok=True)
 UPLOADS = DEFAULT_WORKSPACE / "uploads"
@@ -28,8 +28,8 @@ jobs: Dict[str, Dict[str, Any]] = {}
 projects_by_id: Dict[str, Path] = {}
 
 FILE_DIALOG_TYPES = {
-    "sloppack": [
-        ("feedBack Studio packages", "*.sloppack *.sloppak *.feedpak *.zip"),
+    "feedpak": [
+        ("feedBack Studio packages", "*.feedpak *.zip"),
         ("All files", "*.*"),
     ],
     "psarc": [
@@ -42,7 +42,7 @@ FILE_DIALOG_TYPES = {
     ],
 }
 
-SLOPPAK_INPUT_SUFFIXES = {".sloppack", ".sloppak", ".feedpak", ".zip"}
+SLOPPAK_INPUT_SUFFIXES = {".feedpak", ".zip"}
 
 
 def cleanup_backend_workspace_on_startup() -> None:

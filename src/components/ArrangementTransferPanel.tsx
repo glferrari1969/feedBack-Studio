@@ -9,7 +9,7 @@ interface Props {
   strictArrangement?: boolean;
 }
 
-const GP_FILE_RE = /\.(gp5|gp4|gp3|gpx|gp)$/i;
+const GP_FILE_RE = /\.(gp5|gp4|gp3|gpx)$/i;
 
 function isGpFile(file: File | null): boolean {
   if (!file) return false;
@@ -164,7 +164,7 @@ export function ArrangementTransferPanel({
             ref={replaceFileInputRef}
             className="hiddenInput"
             type="file"
-            accept=".mid,.midi,.gp5,.gp4,.gp3,.gpx,.gp"
+            accept=".mid,.midi,.gp5,.gp4,.gp3,.gpx"
             onChange={(event) => { void onReplaceFileChange(event.target.files?.[0] ?? null); }}
           />
           <button

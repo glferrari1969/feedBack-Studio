@@ -23,8 +23,8 @@ def get_job(job_id: str) -> dict:
 @router.post("/api/tools/gp/tracks")
 async def list_gp_tracks_endpoint(gp_file: UploadFile = File(...)) -> list[dict]:
     suffix = Path(gp_file.filename or "arr").suffix.lower()
-    if suffix not in [".gp5", ".gp4", ".gp3", ".gpx", ".gp"]:
-        raise HTTPException(status_code=400, detail="Unsupported file format. Use Guitar Pro 5/4/3/GPX/GP.")
+    if suffix not in [".gp5", ".gp4", ".gp3", ".gpx"]:
+        raise HTTPException(status_code=400, detail="Unsupported file format. Use Guitar Pro 5/4/3/GPX.")
     temp = UPLOADS / f"{uuid.uuid4()}{suffix}"
     with temp.open("wb") as f:
         shutil.copyfileobj(gp_file.file, f)

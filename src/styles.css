@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-tab-mono: "Cascadia Mono", "JetBrains Mono", "Consolas", "Courier New", monospace;
   --font-notation-serif: "Noto Serif", "Georgia", "Times New Roman", serif;
@@ -701,6 +701,20 @@ code { color: #bae6fd; }
 .tabNote:active { cursor: grabbing; }
 .tabNote.selected { outline: 2px solid #facc15; background: #fbbf24; border-color: #f59e0b; color: #451a03; z-index: 4; }
 .tabNote em { font-style: normal; font-size: 8px; font-weight: 900; opacity: 0.8; }
+.tabNote.tabExcludedNote {
+  border-color: #ef4444;
+  background: #dc2626;
+  color: #fee2e2;
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.26);
+  cursor: pointer;
+}
+.tabNote.tabExcludedNote:active { cursor: pointer; }
+.tabNote.tabExcludedNote.selected {
+  outline: 2px solid #fecaca;
+  border-color: #f87171;
+  background: #b91c1c;
+  color: #ffffff;
+}
 
 .tabEditorBottom { display: grid; grid-template-columns: 1.2fr 1fr 0.75fr; gap: 12px; padding: 0 13px 12px; }
 .selectedNotePanel, .techniquePanel, .chordPanel { border: 1px solid #263244; background: #020617; border-radius: 11px; overflow: hidden; }
@@ -710,7 +724,10 @@ code { color: #bae6fd; }
 .noteEditGrid label { display: grid; gap: 4px; color: #cbd5e1; font-size: 11px; }
 .noteEditGrid input { width: 100%; background: #111827; color: #e5e7eb; border: 1px solid #334155; border-radius: 8px; padding: 6px; }
 .noteEditGrid input { font-family: var(--font-tab-mono); font-variant-numeric: tabular-nums; }
-.noteButtons { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; }
+.noteButtons { grid-column: 1 / -1; display: grid; gap: 7px; }
+.noteButtonRow { display: flex; flex-wrap: wrap; gap: 7px; }
+.noteButtonRow.navRow .smallButton { min-width: 132px; }
+.noteButtonRow.dangerRow { justify-content: flex-end; }
 .chordMemberEditor { grid-column: 1 / -1; display: grid; gap: 8px; margin-top: 4px; padding-top: 8px; border-top: 1px solid #263244; }
 .chordMemberHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #cbd5e1; font-size: 11px; }
 .chordMemberList { display: grid; gap: 8px; }
@@ -834,11 +851,6 @@ code { color: #bae6fd; }
 
 .waveformSurface {
   position: relative;
-  position: static;
-  z-index: auto;
-  position: absolute;
-  left: 0;
-  top: 0;
   height: 190px;
   display: block;
   cursor: pointer;
@@ -1407,7 +1419,7 @@ code { color: #bae6fd; }
   .paramGrid { grid-template-columns: 1fr; }
 }
 
-/* Tone editor: only imported PSARC/sloppack tones, graphical chain, focused parameter editor */
+/* Tone editor: only imported PSARC/feedpak tones, graphical chain, focused parameter editor */
 .toneEditorBodyCompact {
   grid-template-columns: 1fr 1fr;
 }
@@ -4191,3 +4203,4 @@ button:not(.dangerButton):not(.toneSegment):not(.toneSyncMarker):not(.syncMiniIt
   .commitBar .dangerButton,
   .commitBar .secondaryButton { width: 100%; }
 }
+

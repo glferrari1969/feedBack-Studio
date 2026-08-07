@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import sys
@@ -275,7 +275,10 @@ def build_stems(project_id: str, source_dir: Path, manifest: dict, *, stem_order
         if not isinstance(entry, dict):
             continue
         sid = str(entry.get("id") or normalize_stem_id(str(entry.get("file", "stem")), stem_order))
-        rel = str(entry.get("file") or "")
+        rel = str(entry.get("file") or "").replace("\\", "/").strip()
+        if rel.startswith("./"):
+            rel = rel[2:]
+        rel = rel.lstrip("/")
         if not rel or not (source_dir / rel).exists():
             continue
         normalized_sid = normalize_stem_kind(sid)
@@ -292,13 +295,33 @@ def build_stems(project_id: str, source_dir: Path, manifest: dict, *, stem_order
             }
         )
     if not stems:
-        for p in sorted((source_dir / "stems").glob("*")) if (source_dir / "stems").exists() else []:
-            if p.suffix.lower() not in [".wav", ".ogg", ".mp3", ".flac"]:
+        stems_dir = source_dir / "stems"
+        candidates = (
+            sorted(stems_dir.glob("*"))
+            if stems_dir.exists()
+            else []
+        )
+        if not candidates:
+            # Fallback for packages that keep playable audio outside stems/.
+            candidates = sorted(
+                p
+                for p in source_dir.rglob("*")
+                if p.is_file()
+                and p.suffix.lower() in [".wav", ".ogg", ".mp3", ".flac", ".m4a", ".aac"]
+                and "preview" not in p.name.lower()
+            )
+
+        seen_rel: set[str] = set()
+        for p in candidates:
+            if p.suffix.lower() not in [".wav", ".ogg", ".mp3", ".flac", ".m4a", ".aac"]:
                 continue
-            sid = normalize_stem_id(p.name, stem_order)
+            rel = p.relative_to(source_dir).as_posix()
+            if rel in seen_rel:
+                continue
+            seen_rel.add(rel)
+            sid = normalize_stem_id(p.stem, stem_order)
             normalized_sid = normalize_stem_kind(sid)
             kind = normalized_sid if normalized_sid in ["vocals", "drums", "bass", "guitar", "piano", "other", "full"] else "mix"
-            rel = p.relative_to(source_dir).as_posix()
             stems.append(
                 {
                     "id": sid,
@@ -762,8 +785,10 @@ def build_project(
         "syncWarning": sync_warning,
         "musicXml": None,
         "outputPath": str(source_dir.parent),
-        "sloppackPath": str(project_original_save_path(source_dir)),
-        "originalSloppackPath": str(project_original_save_path(source_dir)),
-        "workingSloppackPath": str(project_working_save_path(source_dir)),
+        "feedpakPath": str(project_original_save_path(source_dir)),
+        "originalFeedpakPath": str(project_original_save_path(source_dir)),
+        "workingFeedpakPath": str(project_working_save_path(source_dir)),
         "hasUncommittedChanges": False,
     }
+
+

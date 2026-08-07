@@ -29,9 +29,9 @@ export function TechniquePanel({ selectedNote, onChangeNote }: TechniquePanelPro
 
   return (
     <section className="techniquePanel">
-      <div className="subHeader">Tecniche</div>
+      <div className="subHeader">Techniques</div>
       {!selectedNote ? (
-        <p className="hint slimHint">Seleziona una nota nella tablatura per modificare le tecniche.</p>
+        <p className="hint slimHint">Select a note in the tablature to edit techniques.</p>
       ) : (
         <div className="techniqueGrid">
           {techniqueOptions.map((option) => (

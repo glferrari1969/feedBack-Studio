@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import base64
 import datetime
@@ -30,7 +30,7 @@ from app.runtime_state import UPLOADS, projects_by_id
 DRUM_TAB_ARRANGEMENT_ID = "__drum_tab__"
 DEFAULT_DRUM_TAB_REL = "drum_tab.json"
 MIDI_SUFFIXES = {".mid", ".midi"}
-GP_SUFFIXES = {".gp5", ".gp4", ".gp3", ".gpx", ".gp"}
+GP_SUFFIXES = {".gp5", ".gp4", ".gp3", ".gpx"}
 
 
 @dataclass(frozen=True)
@@ -161,13 +161,13 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
         deps.save_lyrics_to_project(source_dir, lyrics, source)
 
         # Lyrics import/re-sync must only update the backend working copy.
-        # It must never write directly to the original sloppack on disk.
+        # It must never write directly to the original feedpak on disk.
         project = deps.build_project(project_id, source_dir, selected_arrangement=None)
         working_path = deps.pack_working_sloppack(source_dir, project)
         original_path = deps.project_original_save_path(source_dir, project)
-        project["workingSloppackPath"] = str(working_path)
-        project["sloppackPath"] = str(original_path)
-        project["originalSloppackPath"] = str(original_path)
+        project["workingFeedpakPath"] = str(working_path)
+        project["feedpakPath"] = str(original_path)
+        project["originalFeedpakPath"] = str(original_path)
         project["hasUncommittedChanges"] = True
         (source_dir.parent / "project.json").write_text(json.dumps(project, indent=2, ensure_ascii=False), encoding="utf-8")
         return project
@@ -187,9 +187,9 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
         deps.persist_project_to_workdir(source_dir, project)
         working_path = deps.pack_working_sloppack(source_dir, project)
         original_path = deps.project_original_save_path(source_dir, project)
-        project["workingSloppackPath"] = str(working_path)
-        project["sloppackPath"] = str(original_path)
-        project["originalSloppackPath"] = str(original_path)
+        project["workingFeedpakPath"] = str(working_path)
+        project["feedpakPath"] = str(original_path)
+        project["originalFeedpakPath"] = str(original_path)
         project["hasUncommittedChanges"] = True
         (source_dir.parent / "project.json").write_text(json.dumps(project, indent=2, ensure_ascii=False), encoding="utf-8")
         return project
@@ -202,9 +202,9 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
         deps.persist_project_to_workdir(source_dir, project)
         working_path = deps.pack_working_sloppack(source_dir, project)
         original_path = deps.pack_current_sloppack(source_dir, project)
-        project["workingSloppackPath"] = str(working_path)
-        project["sloppackPath"] = str(original_path)
-        project["originalSloppackPath"] = str(original_path)
+        project["workingFeedpakPath"] = str(working_path)
+        project["feedpakPath"] = str(original_path)
+        project["originalFeedpakPath"] = str(original_path)
         project["hasUncommittedChanges"] = False
         (source_dir.parent / "project.json").write_text(json.dumps(project, indent=2, ensure_ascii=False), encoding="utf-8")
         return project
@@ -218,10 +218,10 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
         project_dir = source_dir.parent
         original_path = deps.project_original_save_path(source_dir, project)
         if not original_path.exists():
-            raise HTTPException(status_code=404, detail=f"Original sloppack not found: {original_path}")
+            raise HTTPException(status_code=404, detail=f"Original feedpak not found: {original_path}")
 
         # Keep only the original target marker and, if the fallback target lives
-        # inside the project folder, the original sloppack itself. Remove all
+        # inside the project folder, the original feedpak itself. Remove all
         # working artifacts before rebuilding the working directory from disk.
         try:
             original_resolved = original_path.resolve()
@@ -243,7 +243,7 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
                 pass
 
         source_dir = deps.unpack_sloppack(original_path, project_dir)
-        working_path = project_dir / "working.sloppack"
+        working_path = project_dir / "working.feedpak"
         deps.remember_save_path(source_dir, original_path)
         deps.remember_working_save_path(source_dir, working_path)
         deps.pack_working_sloppack(source_dir)
@@ -251,9 +251,9 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
 
         selected_arrangement = project.get("selectedArrangementId") if isinstance(project, dict) else None
         restored = deps.build_project(project_id, source_dir, selected_arrangement=selected_arrangement)
-        restored["workingSloppackPath"] = str(working_path)
-        restored["sloppackPath"] = str(original_path)
-        restored["originalSloppackPath"] = str(original_path)
+        restored["workingFeedpakPath"] = str(working_path)
+        restored["feedpakPath"] = str(original_path)
+        restored["originalFeedpakPath"] = str(original_path)
         restored["hasUncommittedChanges"] = False
         (project_dir / "project.json").write_text(json.dumps(restored, indent=2, ensure_ascii=False), encoding="utf-8")
         return restored
@@ -327,9 +327,9 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
         working_path = deps.pack_working_sloppack(source_dir, previous_project if isinstance(previous_project, dict) else None)
         updated = deps.build_project(project_id, source_dir, selected_arrangement=selected_arrangement)
         original_path = deps.project_original_save_path(source_dir, previous_project if isinstance(previous_project, dict) else None)
-        updated["sloppackPath"] = str(original_path)
-        updated["originalSloppackPath"] = str(original_path)
-        updated["workingSloppackPath"] = str(working_path)
+        updated["feedpakPath"] = str(original_path)
+        updated["originalFeedpakPath"] = str(original_path)
+        updated["workingFeedpakPath"] = str(working_path)
         updated["hasUncommittedChanges"] = True
         (source_dir.parent / "project.json").write_text(json.dumps(updated, indent=2, ensure_ascii=False), encoding="utf-8")
         return updated
@@ -867,9 +867,9 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
             working_path = deps.pack_working_sloppack(source_dir, previous_project if isinstance(previous_project, dict) else None)
             updated = deps.build_project(project_id, source_dir, selected_arrangement=DRUM_TAB_ARRANGEMENT_ID)
             original_path = deps.project_original_save_path(source_dir, previous_project if isinstance(previous_project, dict) else None)
-            updated["sloppackPath"] = str(original_path)
-            updated["originalSloppackPath"] = str(original_path)
-            updated["workingSloppackPath"] = str(working_path)
+            updated["feedpakPath"] = str(original_path)
+            updated["originalFeedpakPath"] = str(original_path)
+            updated["workingFeedpakPath"] = str(working_path)
             updated["hasUncommittedChanges"] = True
             (source_dir.parent / "project.json").write_text(json.dumps(updated, indent=2, ensure_ascii=False), encoding="utf-8")
             return updated
@@ -890,13 +890,13 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
             shutil.copyfileobj(arrangement_file.file, f)
         try:
             name = str(entry.get("name") or arrangement_id)
-            if suffix in [".gp5", ".gp4", ".gp3", ".gpx", ".gp"]:
+            if suffix in GP_SUFFIXES:
                 track_index = gp_track_index if gp_track_index >= 0 else None
                 wire = deps.gp_to_wire_direct(temp, name, wire_instrument, gp_track_index=track_index)
             elif suffix in [".mid", ".midi"]:
                 wire = deps.simple_midi_to_wire(temp, name, wire_instrument)
             else:
-                raise HTTPException(status_code=400, detail="Unsupported arrangement format. Use MIDI or Guitar Pro 5/4/3/GPX/GP.")
+                raise HTTPException(status_code=400, detail="Unsupported arrangement format. Use MIDI or Guitar Pro 5/4/3/GPX.")
 
             arr_rel = rel or f"arrangements/{arrangement_id}.json"
             (source_dir / arr_rel).parent.mkdir(parents=True, exist_ok=True)
@@ -918,9 +918,9 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
         working_path = deps.pack_working_sloppack(source_dir, previous_project if isinstance(previous_project, dict) else None)
         updated = deps.build_project(project_id, source_dir, selected_arrangement=arrangement_id)
         original_path = deps.project_original_save_path(source_dir, previous_project if isinstance(previous_project, dict) else None)
-        updated["sloppackPath"] = str(original_path)
-        updated["originalSloppackPath"] = str(original_path)
-        updated["workingSloppackPath"] = str(working_path)
+        updated["feedpakPath"] = str(original_path)
+        updated["originalFeedpakPath"] = str(original_path)
+        updated["workingFeedpakPath"] = str(working_path)
         updated["hasUncommittedChanges"] = True
         (source_dir.parent / "project.json").write_text(json.dumps(updated, indent=2, ensure_ascii=False), encoding="utf-8")
         return updated
@@ -960,9 +960,9 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
                 source_dir,
                 previous_project if isinstance(previous_project, dict) else None,
             )
-            updated["sloppackPath"] = str(original_path)
-            updated["originalSloppackPath"] = str(original_path)
-            updated["workingSloppackPath"] = str(working_path)
+            updated["feedpakPath"] = str(original_path)
+            updated["originalFeedpakPath"] = str(original_path)
+            updated["workingFeedpakPath"] = str(working_path)
             updated["hasUncommittedChanges"] = True
             (source_dir.parent / "project.json").write_text(
                 json.dumps(updated, indent=2, ensure_ascii=False),
@@ -1001,9 +1001,9 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
             source_dir,
             previous_project if isinstance(previous_project, dict) else None,
         )
-        updated["sloppackPath"] = str(original_path)
-        updated["originalSloppackPath"] = str(original_path)
-        updated["workingSloppackPath"] = str(working_path)
+        updated["feedpakPath"] = str(original_path)
+        updated["originalFeedpakPath"] = str(original_path)
+        updated["workingFeedpakPath"] = str(working_path)
         updated["hasUncommittedChanges"] = True
         (source_dir.parent / "project.json").write_text(
             json.dumps(updated, indent=2, ensure_ascii=False),
@@ -1080,9 +1080,9 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
             source_dir,
             previous_project if isinstance(previous_project, dict) else None,
         )
-        updated["sloppackPath"] = str(original_path)
-        updated["originalSloppackPath"] = str(original_path)
-        updated["workingSloppackPath"] = str(working_path)
+        updated["feedpakPath"] = str(original_path)
+        updated["originalFeedpakPath"] = str(original_path)
+        updated["workingFeedpakPath"] = str(working_path)
         updated["hasUncommittedChanges"] = True
         (source_dir.parent / "project.json").write_text(
             json.dumps(updated, indent=2, ensure_ascii=False),
@@ -1130,9 +1130,9 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
                 source_dir,
                 previous_project if isinstance(previous_project, dict) else None,
             )
-            updated["sloppackPath"] = str(original_path)
-            updated["originalSloppackPath"] = str(original_path)
-            updated["workingSloppackPath"] = str(working_path)
+            updated["feedpakPath"] = str(original_path)
+            updated["originalFeedpakPath"] = str(original_path)
+            updated["workingFeedpakPath"] = str(working_path)
             updated["hasUncommittedChanges"] = True
             (source_dir.parent / "project.json").write_text(
                 json.dumps(updated, indent=2, ensure_ascii=False),
@@ -1189,9 +1189,9 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
             source_dir,
             previous_project if isinstance(previous_project, dict) else None,
         )
-        updated["sloppackPath"] = str(original_path)
-        updated["originalSloppackPath"] = str(original_path)
-        updated["workingSloppackPath"] = str(working_path)
+        updated["feedpakPath"] = str(original_path)
+        updated["originalFeedpakPath"] = str(original_path)
+        updated["workingFeedpakPath"] = str(working_path)
         updated["hasUncommittedChanges"] = True
         (source_dir.parent / "project.json").write_text(
             json.dumps(updated, indent=2, ensure_ascii=False),
@@ -1218,3 +1218,5 @@ def create_projects_router(deps: ProjectsRouterDeps) -> APIRouter:
         return {"coverUrl": f"/api/projects/{project_id}/asset/{rel}", "coverPath": rel}
 
     return router
+
+

@@ -441,6 +441,7 @@ export function PianoRoll({
                   event.stopPropagation();
                   setActiveEditorNoteId(note.id);
                   onSelectNote(note.id);
+                  onSeek(note.start);
                   const chordOriginals = visibleNotes.filter(
                     (candidate) =>
                       Math.abs(candidate.start - note.start) <= CHORD_SELECTION_TOLERANCE,
@@ -630,6 +631,7 @@ export function PianoRoll({
                         onClick={() => {
                           setActiveEditorNoteId(note.id);
                           onSelectNote(note.id);
+                          onSeek(note.start);
                         }}
                         title="Focus this note"
                       >

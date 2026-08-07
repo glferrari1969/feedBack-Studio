@@ -63,14 +63,14 @@ def build_open_jobs_processors(deps: OpenJobsDeps) -> tuple[Callable[..., None],
             # Always keep the editable project under the backend workspace.
             project_dir = deps.make_backend_project_dir(job_id)
             output_base = deps.resolve_final_output_base(input_file, final_output_base, original_input_path)
-            sloppack_path = project_dir / "source.feedpak"
+            feedpak_path = project_dir / "source.feedpak"
             folder_name = deps.sanitize_windows_name(input_file.stem, "converted_project")
 
             if suffix == ".psarc":
-                job.update(step="Converting PSARC to sloppack", progress=10)
+                job.update(step="Converting PSARC to feedpak", progress=10)
                 deps.convert_psarc_to_sloppak(
                     input_file,
-                    sloppack_path,
+                    feedpak_path,
                     as_dir=False,
                     progress_cb=deps.progress_factory(job, 10, 55),
                     split_stems=False,
@@ -81,14 +81,14 @@ def build_open_jobs_processors(deps: OpenJobsDeps) -> tuple[Callable[..., None],
                 audio_metadata = deps.read_audio_tags(input_file)
                 naming_metadata = audio_metadata if isinstance(audio_metadata, dict) else {}
                 folder_name = deps.conversion_folder_name_from_metadata(audio_metadata, input_file)
-                sloppack_path = deps.create_mp3_sloppack(input_file, sloppack_path, audio_metadata, job)
+                feedpak_path = deps.create_mp3_sloppack(input_file, feedpak_path, audio_metadata, job)
             elif suffix in deps.sloppack_input_suffixes:
-                shutil.copyfile(input_file, sloppack_path)
+                shutil.copyfile(input_file, feedpak_path)
             else:
-                raise RuntimeError("Unsupported input format. Use .sloppack/.sloppak/.feedpak, .psarc, or .mp3/.wav/.flac/.ogg audio")
+                raise RuntimeError("Unsupported input format. Use .feedpak, .psarc, or .mp3/.wav/.flac/.ogg audio")
 
-            job.update(step="Extracting sloppack for editor", progress=85)
-            source_dir = deps.unpack_sloppack(sloppack_path, project_dir)
+            job.update(step="Extracting feedpak for editor", progress=85)
+            source_dir = deps.unpack_sloppack(feedpak_path, project_dir)
             if suffix in [".psarc", ".mp3", ".wav", ".flac", ".m4a", ".ogg"]:
                 deps.ensure_full_ogg_for_single_mix(source_dir, job)
 
@@ -97,7 +97,7 @@ def build_open_jobs_processors(deps: OpenJobsDeps) -> tuple[Callable[..., None],
                 deps.generate_mp3_sync_files(source_dir, job=job, beats_per_bar=4)
 
             if suffix in [".psarc", ".mp3", ".wav", ".flac", ".m4a", ".ogg"]:
-                deps.pack_sloppack(source_dir, sloppack_path)
+                deps.pack_sloppack(source_dir, feedpak_path)
 
             if suffix == ".psarc":
                 psarc_metadata = deps.metadata_from_manifest(source_dir)
@@ -119,7 +119,7 @@ def build_open_jobs_processors(deps: OpenJobsDeps) -> tuple[Callable[..., None],
             elif suffix in deps.sloppack_input_suffixes and original_file_path is not None:
                 save_target = original_file_path
 
-            working_target = project_dir / "working.sloppack"
+            working_target = project_dir / "working.feedpak"
             deps.remember_save_path(source_dir, save_target)
             deps.remember_working_save_path(source_dir, working_target)
 
@@ -131,9 +131,9 @@ def build_open_jobs_processors(deps: OpenJobsDeps) -> tuple[Callable[..., None],
             deps.projects_by_id[job_id] = source_dir
             project = deps.build_project(job_id, source_dir)
             project["outputPath"] = str(project_dir)
-            project["sloppackPath"] = str(save_target)
-            project["originalSloppackPath"] = str(save_target)
-            project["workingSloppackPath"] = str(working_target)
+            project["feedpakPath"] = str(save_target)
+            project["originalFeedpakPath"] = str(save_target)
+            project["workingFeedpakPath"] = str(working_target)
             project["hasUncommittedChanges"] = False
             (project_dir / "project.json").write_text(json.dumps(project, indent=2), encoding="utf-8")
             job.update(status="done", step="Opened in editor", progress=100, project=project)
@@ -149,13 +149,13 @@ def build_open_jobs_processors(deps: OpenJobsDeps) -> tuple[Callable[..., None],
             previous_project = deps.read_json_if_exists(source_dir.parent / "project.json", {})
             original_path = deps.project_original_save_path(source_dir, previous_project if isinstance(previous_project, dict) else None)
             working_path = deps.pack_working_sloppack(source_dir, previous_project if isinstance(previous_project, dict) else None)
-            job.update(status="running", step="Running Demucs on working sloppack", progress=10)
+            job.update(status="running", step="Running Demucs on working feedpak", progress=10)
             deps.split_sloppak_stems(working_path, model="htdemucs_6s", progress_cb=deps.progress_factory(job, 10, 80), transcribe_lyrics=False)
             deps.unpack_sloppack(working_path, source_dir.parent)
             project = deps.build_project(project_id, source_dir)
-            project["sloppackPath"] = str(original_path)
-            project["originalSloppackPath"] = str(original_path)
-            project["workingSloppackPath"] = str(working_path)
+            project["feedpakPath"] = str(original_path)
+            project["originalFeedpakPath"] = str(original_path)
+            project["workingFeedpakPath"] = str(working_path)
             project["hasUncommittedChanges"] = True
             (source_dir.parent / "project.json").write_text(json.dumps(project, indent=2, ensure_ascii=False), encoding="utf-8")
             job.update(status="done", step="Stems updated in working copy", progress=100, project=project)

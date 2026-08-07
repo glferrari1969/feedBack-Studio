@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import tempfile
@@ -892,9 +892,9 @@ def build_stem_arrangement_processor(deps: StemArrangementJobsDeps) -> Callable[
                 source_dir,
                 previous_project if isinstance(previous_project, dict) else None,
             )
-            updated["sloppackPath"] = str(original_path)
-            updated["originalSloppackPath"] = str(original_path)
-            updated["workingSloppackPath"] = str(working_path)
+            updated["feedpakPath"] = str(original_path)
+            updated["originalFeedpakPath"] = str(original_path)
+            updated["workingFeedpakPath"] = str(working_path)
             updated["hasUncommittedChanges"] = True
             (source_dir.parent / "project.json").write_text(
                 json.dumps(updated, indent=2, ensure_ascii=False),
@@ -967,3 +967,5 @@ def build_stem_tone_processor(deps: StemArrangementJobsDeps) -> Callable[..., No
             job.update(status="error", step="Tone generation failed", error=str(exc), progress=100)
 
     return process_stem_tone_job
+
+

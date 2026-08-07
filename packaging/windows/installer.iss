@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.0-alpha.1"
+  #define MyAppVersion "0.1.0-alpha.4"
 #endif
 
 #define MyAppName "feedBack Studio"
@@ -29,11 +29,11 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-VersionInfoVersion=0.1.0.0
+VersionInfoVersion=0.1.0.4
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription={#MyAppName} Windows installer
 VersionInfoProductName={#MyAppName}
-VersionInfoProductVersion=0.1.0.0
+VersionInfoProductVersion=0.1.0.4
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

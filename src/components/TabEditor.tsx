@@ -5,7 +5,6 @@ import {
   BASS_STANDARD_TUNING,
   DROP_D_TUNING,
   GUITAR_STANDARD_TUNING,
-  ensureTabPosition,
   pitchToPositions,
   stringFretToPitch,
 } from "./FretboardMapper";
@@ -30,6 +29,7 @@ interface TabEditorProps {
   onAddNotes: (notes: MidiNote[]) => void;
   onDeleteNote: (noteId: string) => void;
   onSeek: (time: number) => void;
+  onChangeTuning?: (tuning: number[]) => void;
   headerControl?: ReactNode;
   chordDiagram?: ReactNode;
 }
@@ -37,6 +37,7 @@ interface TabEditorProps {
 const FRET_MAX = 24;
 const DEFAULT_NOTE_DURATION = 0.5;
 const CHORD_SELECTION_TOLERANCE = 0.02;
+const DRAG_ACTIVATION_DISTANCE_PX = 8;
 
 type TuningPreset = {
   id: string;
@@ -161,7 +162,108 @@ function getVisualStrings(tuning: number[]) {
 }
 
 function formatTuningNotes(tuning: number[]) {
-  return tuning.map((pitch) => midiToName(pitch)).join(" ");
+  return tuning
+    .slice()
+    .reverse()
+    .map((pitch) => midiToName(pitch))
+    .join(" ");
+}
+
+function toDisplayStringNumber(internalString: number, totalStrings: number) {
+  return clamp(totalStrings - internalString + 1, 1, totalStrings);
+}
+
+function toInternalStringNumber(displayString: number, totalStrings: number) {
+  return clamp(totalStrings - displayString + 1, 1, totalStrings);
+}
+
+function isExactPositionPlayable(note: MidiNote, tuning: number[]) {
+  if (typeof note.string !== "number" || typeof note.fret !== "number") return false;
+  if (note.string < 1 || note.string > tuning.length) return false;
+  if (note.fret < 0 || note.fret > FRET_MAX) return false;
+  return stringFretToPitch(note.string, note.fret, tuning) === note.pitch;
+}
+
+function pickNearestPosition(
+  note: MidiNote,
+  tuning: number[],
+  previous?: { string: number; fret: number },
+) {
+  const positions = pitchToPositions(note.pitch, tuning, FRET_MAX);
+  if (!positions.length) return null;
+
+  const preferredString =
+    typeof note.string === "number"
+      ? clamp(note.string, 1, tuning.length)
+      : undefined;
+  const preferredFret =
+    typeof note.fret === "number" ? clamp(note.fret, 0, FRET_MAX) : undefined;
+
+  const anchorString = preferredString ?? previous?.string ?? Math.ceil(tuning.length / 2);
+  const anchorFret = preferredFret ?? previous?.fret ?? 5;
+
+  return positions
+    .slice()
+    .sort((a, b) => {
+      const scoreA =
+        Math.abs(a.string - anchorString) * (preferredString ? 4 : 3) +
+        Math.abs(a.fret - anchorFret);
+      const scoreB =
+        Math.abs(b.string - anchorString) * (preferredString ? 4 : 3) +
+        Math.abs(b.fret - anchorFret);
+      if (scoreA !== scoreB) return scoreA - scoreB;
+      return a.fret - b.fret;
+    })[0];
+}
+
+function mapTrackNotesToTuning(trackNotes: MidiNote[], tuning: number[]) {
+  const positionedNotes: Array<MidiNote & { string: number; fret: number }> = [];
+  const excludedNotes: MidiNote[] = [];
+  let previous: { string: number; fret: number } | undefined;
+
+  trackNotes.forEach((note) => {
+    if (isExactPositionPlayable(note, tuning)) {
+      const fixedNote = {
+        ...note,
+        string: note.string as number,
+        fret: note.fret as number,
+      };
+      positionedNotes.push(fixedNote);
+      previous = { string: fixedNote.string, fret: fixedNote.fret };
+      return;
+    }
+
+    const next = pickNearestPosition(note, tuning, previous);
+    if (!next) {
+      excludedNotes.push(note);
+      return;
+    }
+
+    const mappedNote = {
+      ...note,
+      string: next.string,
+      fret: next.fret,
+    };
+    positionedNotes.push(mappedNote);
+    previous = { string: mappedNote.string, fret: mappedNote.fret };
+  });
+
+  return { positionedNotes, excludedNotes };
+}
+
+function excludedFretDelta(note: MidiNote, tuning: number[]) {
+  if (!tuning.length) return 0;
+  const minOpen = Math.min(...tuning);
+  const maxPlayable = Math.max(...tuning.map((openPitch) => openPitch + FRET_MAX));
+  if (note.pitch < minOpen) return note.pitch - minOpen;
+  if (note.pitch > maxPlayable) return note.pitch - maxPlayable;
+  return 0;
+}
+
+function excludedFretLabel(note: MidiNote, tuning: number[]) {
+  const delta = excludedFretDelta(note, tuning);
+  const signed = delta > 0 ? `+${delta}` : `${delta}`;
+  return signed;
 }
 
 function normalizeToneChanges(tones: ToneBlock | null | undefined): ToneChange[] {
@@ -225,6 +327,7 @@ export function TabEditor({
   onAddNotes,
   onDeleteNote,
   onSeek,
+  onChangeTuning,
   headerControl,
   chordDiagram,
 }: TabEditorProps) {
@@ -244,12 +347,15 @@ export function TabEditor({
   const [nudge, setNudge] = useState(0.01);
   const [newFret, setNewFret] = useState(0);
   const [activeEditorNoteId, setActiveEditorNoteId] = useState<string | null>(null);
+  const [selectedExcludedNoteId, setSelectedExcludedNoteId] = useState<string | null>(null);
+  const preferredEditorNoteIdRef = useRef<string | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
     id: string;
     startX: number;
     startY: number;
+    dragActivated: boolean;
     original: MidiNote;
     chordOriginals: MidiNote[];
     rippleOriginals: MidiNote[];
@@ -298,24 +404,70 @@ export function TabEditor({
       duration,
     );
   };
-  const trackNotes = useMemo(() => {
-    let previous: MidiNote | undefined;
+  const sourceTrackNotes = useMemo(() => {
     return notes
       .filter((note) => note.trackId === selectedTrackId)
-      .sort((a, b) => a.start - b.start)
-      .map((note) => {
-        const mapped = ensureTabPosition(note, localTuning, previous);
-        previous = mapped;
-        return mapped;
-      });
-  }, [notes, selectedTrackId, localTuning]);
+      .sort((a, b) => a.start - b.start);
+  }, [notes, selectedTrackId]);
 
-  const selectedNotes = useMemo(
-    () => trackNotes.filter((note) => note.selected),
+  const mappedTrack = useMemo(
+    () => mapTrackNotesToTuning(sourceTrackNotes, localTuning),
+    [sourceTrackNotes, localTuning],
+  );
+
+  const trackNotes = mappedTrack.positionedNotes;
+  const excludedTrackNotes = mappedTrack.excludedNotes;
+  const excludedNoteIds = useMemo(
+    () => new Set(excludedTrackNotes.map((note) => note.id)),
+    [excludedTrackNotes],
+  );
+  const positionedById = useMemo(
+    () => new Map(trackNotes.map((note) => [note.id, note] as const)),
     [trackNotes],
   );
+
+  const excludedSummary = useMemo(() => {
+    if (!excludedTrackNotes.length) return "";
+    return excludedTrackNotes
+      .slice(0, 5)
+      .map((note) => `${excludedFretLabel(note, localTuning)} @ ${note.start.toFixed(2)}s`)
+      .join(", ");
+  }, [excludedTrackNotes, localTuning]);
+
+  useEffect(() => {
+    if (!selectedExcludedNoteId) return;
+    if (excludedTrackNotes.some((note) => note.id === selectedExcludedNoteId)) return;
+    setSelectedExcludedNoteId(null);
+  }, [excludedTrackNotes, selectedExcludedNoteId]);
+
+  const excludedNoteTop = (pitch: number) => {
+    if (!visibleStrings.length) return "50%";
+    let closestIndex = 0;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    visibleStrings.forEach((item, index) => {
+      const distance = Math.abs(item.pitch - pitch);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+    return `${((closestIndex + 0.5) / visibleStrings.length) * 100}%`;
+  };
+
+  const selectedNotes = useMemo(
+    () =>
+      sourceTrackNotes
+        .filter((note) => note.selected)
+        .map((note) => positionedById.get(note.id) ?? note),
+    [sourceTrackNotes, positionedById],
+  );
+  const preferredSelectedNote =
+    preferredEditorNoteIdRef.current !== null
+      ? selectedNotes.find((note) => note.id === preferredEditorNoteIdRef.current)
+      : undefined;
   const selectedNote =
     selectedNotes.find((note) => note.id === activeEditorNoteId) ??
+    preferredSelectedNote ??
     selectedNotes[0];
 
   const selectedChordNotes = useMemo(() => {
@@ -327,19 +479,76 @@ export function TabEditor({
       )
       .sort(
         (a, b) =>
-          (a.string ?? 0) - (b.string ?? 0) ||
+          (b.string ?? 0) - (a.string ?? 0) ||
           (a.fret ?? 0) - (b.fret ?? 0) ||
           a.pitch - b.pitch,
       );
   }, [selectedNotes, selectedNote]);
 
+  const noteGroups = useMemo(() => {
+    const groups: Array<{ start: number; notes: MidiNote[] }> = [];
+    sourceTrackNotes.forEach((note) => {
+      const positioned = positionedById.get(note.id) ?? note;
+      const lastGroup = groups[groups.length - 1];
+      if (
+        lastGroup &&
+        Math.abs(positioned.start - lastGroup.start) <= CHORD_SELECTION_TOLERANCE
+      ) {
+        lastGroup.notes.push(positioned);
+        return;
+      }
+      groups.push({ start: positioned.start, notes: [positioned] });
+    });
+    groups.forEach((group) => {
+      group.notes.sort(
+        (a, b) =>
+          (b.string ?? 0) - (a.string ?? 0) ||
+          (a.fret ?? 0) - (b.fret ?? 0) ||
+          a.pitch - b.pitch,
+      );
+    });
+    return groups;
+  }, [sourceTrackNotes, positionedById]);
+
+  const selectedGroupIndex = useMemo(() => {
+    if (!selectedNote) return -1;
+    const byId = noteGroups.findIndex((group) =>
+      group.notes.some((note) => note.id === selectedNote.id),
+    );
+    if (byId >= 0) return byId;
+    return noteGroups.findIndex(
+      (group) =>
+        Math.abs(group.start - selectedNote.start) <= CHORD_SELECTION_TOLERANCE,
+    );
+  }, [noteGroups, selectedNote]);
+  const canGoPreviousGroup = selectedGroupIndex > 0;
+  const canGoNextGroup =
+    selectedGroupIndex >= 0 && selectedGroupIndex < noteGroups.length - 1;
+
+  useEffect(() => {
+    if (!selectedNote) {
+      if (selectedExcludedNoteId !== null) {
+        setSelectedExcludedNoteId(null);
+      }
+      return;
+    }
+    const nextExcludedId = excludedNoteIds.has(selectedNote.id)
+      ? selectedNote.id
+      : null;
+    if (selectedExcludedNoteId !== nextExcludedId) {
+      setSelectedExcludedNoteId(nextExcludedId);
+    }
+  }, [selectedNote, excludedNoteIds, selectedExcludedNoteId]);
+
   useEffect(() => {
     if (selectedNote) {
+      preferredEditorNoteIdRef.current = selectedNote.id;
       if (activeEditorNoteId !== selectedNote.id) {
         setActiveEditorNoteId(selectedNote.id);
       }
       return;
     }
+    preferredEditorNoteIdRef.current = null;
     if (activeEditorNoteId !== null) {
       setActiveEditorNoteId(null);
     }
@@ -453,6 +662,13 @@ export function TabEditor({
       const rect = gridRef.current?.getBoundingClientRect();
       if (!drag || !rect) return;
       const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      if (!drag.dragActivated) {
+        // A plain click should only select; activate dragging only after
+        // moving a small distance to avoid accidental edits.
+        if (Math.hypot(dx, dy) < DRAG_ACTIVATION_DISTANCE_PX) return;
+        drag.dragActivated = true;
+      }
       const xDeltaSeconds = (dx / contentWidth) * duration;
       const rowHeight = rect.height / visibleStrings.length;
       const rowIndex = clamp(
@@ -620,6 +836,22 @@ export function TabEditor({
     applyNotePatch(selectedNote, patch);
   };
 
+  const transposeSelectedPitch = (semitones: number) => {
+    if (!selectedNote) return;
+    const nextPitch = clamp(selectedNote.pitch + semitones, 0, 127);
+    const moved = { ...selectedNote, pitch: nextPitch };
+    const mapped = pickNearestPosition(moved, localTuning);
+    if (mapped) {
+      onChangeNote({
+        ...moved,
+        string: mapped.string,
+        fret: mapped.fret,
+      });
+      return;
+    }
+    onChangeNote(moved);
+  };
+
   const updateChordMember = (note: MidiNote, patch: Partial<MidiNote>) => {
     applyNotePatch(note, patch);
   };
@@ -668,8 +900,37 @@ export function TabEditor({
   };
 
   const focusChordMember = (noteId: string) => {
+    const note = sourceTrackNotes.find((candidate) => candidate.id === noteId);
+    preferredEditorNoteIdRef.current = noteId;
     setActiveEditorNoteId(noteId);
     onSelectNote(noteId);
+    if (note) onSeek(note.start);
+  };
+
+  const selectAdjacentGroup = (direction: -1 | 1) => {
+    if (!selectedNote || selectedGroupIndex < 0) return;
+    const nextIndex = selectedGroupIndex + direction;
+    if (nextIndex < 0 || nextIndex >= noteGroups.length) return;
+
+    const targetGroup = noteGroups[nextIndex];
+    if (!targetGroup.notes.length) return;
+
+    const selectedString = selectedNote.string ?? targetGroup.notes[0].string ?? 1;
+    const selectedFret = selectedNote.fret ?? targetGroup.notes[0].fret ?? 0;
+    const target = targetGroup.notes
+      .slice()
+      .sort(
+        (a, b) =>
+          Math.abs((a.string ?? selectedString) - selectedString) -
+            Math.abs((b.string ?? selectedString) - selectedString) ||
+          Math.abs((a.fret ?? selectedFret) - selectedFret) -
+            Math.abs((b.fret ?? selectedFret) - selectedFret) ||
+          a.pitch - b.pitch,
+      )[0];
+
+    if (!target) return;
+    focusChordMember(target.id);
+    onSeek(targetGroup.start);
   };
 
   const addNoteToSelectedChord = () => {
@@ -709,6 +970,7 @@ export function TabEditor({
   const applyTuningPreset = (preset: TuningPreset) => {
     setLocalTuning(preset.pitches);
     setSelectedTuningPresetId(preset.id);
+    onChangeTuning?.(preset.pitches);
   };
 
   const applyStringCount = (nextStringCount: number) => {
@@ -721,6 +983,7 @@ export function TabEditor({
     }
     setLocalTuning(fallbackPreset.pitches);
     setSelectedTuningPresetId(fallbackPreset.id);
+    onChangeTuning?.(fallbackPreset.pitches);
   };
 
   return (
@@ -815,6 +1078,14 @@ export function TabEditor({
           Open strings: {tuningSummary}
         </div>
       </div>
+      {excludedTrackNotes.length ? (
+        <>
+          <p className="hint slimHint">
+            {excludedTrackNotes.length} note(s) are outside this tuning/string setup and are shown in red with a signed fret delta.
+            {excludedSummary ? ` Example: ${excludedSummary}` : ""}
+          </p>
+        </>
+      ) : null}
 
       <div className="toneStickyStatus" title={`Active tone: ${activeToneName}`}>
         <span>Active tone</span>
@@ -891,8 +1162,11 @@ export function TabEditor({
                 }}
                 onPointerDown={(event) => {
                   event.stopPropagation();
+                  setSelectedExcludedNoteId(null);
+                  preferredEditorNoteIdRef.current = note.id;
                   setActiveEditorNoteId(note.id);
                   onSelectNote(note.id);
+                  onSeek(note.start);
                   const chordOriginals = trackNotes.filter(
                     (candidate) =>
                       Math.abs(candidate.start - note.start) <=
@@ -911,6 +1185,7 @@ export function TabEditor({
                     id: note.id,
                     startX: event.clientX,
                     startY: event.clientY,
+                    dragActivated: false,
                     original: note,
                     chordOriginals,
                     rippleOriginals,
@@ -925,10 +1200,38 @@ export function TabEditor({
                     string: note.string,
                   });
                 }}
-                title="Trascina a destra/sinistra per spostare nel tempo. Trascina su/giu per cambiare corda mantenendo la stessa nota MIDI. Control+drag: ripple su tutte le note/accordi successivi. Doppio click: +1 tasto."
+                title="Drag left/right to move in time. Drag up/down to change string while keeping the same MIDI note. Control+drag: ripple all following notes/chords. Double click: +1 fret."
               >
                 <strong>{note.fret}</strong>
                 {techniques ? <em>{techniques}</em> : null}
+              </button>
+            );
+          })}
+
+          {excludedTrackNotes.map((note) => {
+            const top = excludedNoteTop(note.pitch);
+            const selected = note.id === selectedExcludedNoteId;
+            return (
+              <button
+                key={`excluded-${note.id}`}
+                type="button"
+                className={`tabNote tabExcludedNote ${selected ? "selected" : ""}`}
+                style={{
+                  left: `${timeToPx(note.start)}px`,
+                  width: `${Math.max(timeToPx(note.duration), 52)}px`,
+                  top,
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  preferredEditorNoteIdRef.current = note.id;
+                  setSelectedExcludedNoteId(note.id);
+                  setActiveEditorNoteId(note.id);
+                  onSelectNote(note.id);
+                  onSeek(note.start);
+                }}
+                title="Excluded note for current tuning. Click to select and edit."
+              >
+                <strong>{excludedFretLabel(note, localTuning)}</strong>
               </button>
             );
           })}
@@ -984,9 +1287,8 @@ export function TabEditor({
             <div className="noteEditArea">
           {!selectedNote ? (
             <p className="hint slimHint">
-              Doppio click nella tablatura per aggiungere una nota. Shift+doppio
-              click per aggiungere un sync point. Seleziona una nota per
-              modificarla.
+              Double click in the tablature to add a note. Shift+double click
+              adds a sync point. Select a note to edit it.
             </p>
           ) : (
             <div className="noteEditGrid">
@@ -996,12 +1298,15 @@ export function TabEditor({
                   type="number"
                   min={1}
                   max={localTuning.length}
-                  value={selectedNote.string ?? 1}
+                  value={toDisplayStringNumber(selectedNote.string ?? 1, localTuning.length)}
                   onChange={(event) =>
                     updateSelected({
-                      string: clamp(
-                        Number(event.target.value),
-                        1,
+                      string: toInternalStringNumber(
+                        clamp(
+                          Number(event.target.value),
+                          1,
+                          localTuning.length,
+                        ),
                         localTuning.length,
                       ),
                     })
@@ -1009,7 +1314,7 @@ export function TabEditor({
                 />
               </label>
               <label>
-                Tasto{" "}
+                Fret{" "}
                 <input
                   type="number"
                   min={0}
@@ -1054,81 +1359,119 @@ export function TabEditor({
                 />
               </label>
               <div className="noteButtons">
-                <button
-                  type="button"
-                  className="smallButton"
-                  onClick={() =>
-                    updateSelected({
-                      start: clamp(Number((selectedNote.start - nudge).toFixed(4)), 0, duration),
-                    })
-                  }
-                >
-                  ←
-                </button>
-                <button
-                  type="button"
-                  className="smallButton"
-                  onClick={() =>
-                    updateSelected({
-                      start: clamp(Number((selectedNote.start + nudge).toFixed(4)), 0, duration),
-                    })
-                  }
-                >
-                  →
-                </button>
-                <button
-                  type="button"
-                  className="smallButton"
-                  title="Sposta sulla corda visivamente superiore mantenendo nota MIDI e durata"
-                  onClick={() => moveSelectedString(1)}
-                >
-                  String ↑
-                </button>
-                <button
-                  type="button"
-                  className="smallButton"
-                  title="Sposta sulla corda visivamente inferiore mantenendo nota MIDI e durata"
-                  onClick={() => moveSelectedString(-1)}
-                >
-                  String ↓
-                </button>
-                <button
-                  type="button"
-                  className="smallButton"
-                  onClick={() =>
-                    updateSelected({
-                      duration: clamp(
-                        selectedNote.duration + snap,
-                        0.125,
-                        duration,
-                      ),
-                    })
-                  }
-                >
-                  Allunga
-                </button>
-                <button
-                  type="button"
-                  className="smallButton"
-                  onClick={() =>
-                    updateSelected({
-                      duration: clamp(
-                        selectedNote.duration - snap,
-                        0.125,
-                        duration,
-                      ),
-                    })
-                  }
-                >
-                  Accorcia
-                </button>
-                <button
-                  type="button"
-                  className="dangerButton"
-                  onClick={() => onDeleteNote(selectedNote.id)}
-                >
-                  Delete
-                </button>
+                <div className="noteButtonRow navRow">
+                  <button
+                    type="button"
+                    className="smallButton"
+                    onClick={() => selectAdjacentGroup(-1)}
+                    disabled={!canGoPreviousGroup}
+                  >
+                    Prev note/chord
+                  </button>
+                  <button
+                    type="button"
+                    className="smallButton"
+                    onClick={() => selectAdjacentGroup(1)}
+                    disabled={!canGoNextGroup}
+                  >
+                    Next note/chord
+                  </button>
+                </div>
+                <div className="noteButtonRow">
+                  <button
+                    type="button"
+                    className="smallButton"
+                    onClick={() =>
+                      updateSelected({
+                        start: clamp(Number((selectedNote.start - nudge).toFixed(4)), 0, duration),
+                      })
+                    }
+                  >
+                    ←
+                  </button>
+                  <button
+                    type="button"
+                    className="smallButton"
+                    onClick={() =>
+                      updateSelected({
+                        start: clamp(Number((selectedNote.start + nudge).toFixed(4)), 0, duration),
+                      })
+                    }
+                  >
+                    →
+                  </button>
+                  <button
+                    type="button"
+                    className="smallButton"
+                    onClick={() =>
+                      updateSelected({
+                        duration: clamp(
+                          selectedNote.duration + snap,
+                          0.125,
+                          duration,
+                        ),
+                      })
+                    }
+                  >
+                    Lengthen
+                  </button>
+                  <button
+                    type="button"
+                    className="smallButton"
+                    onClick={() =>
+                      updateSelected({
+                        duration: clamp(
+                          selectedNote.duration - snap,
+                          0.125,
+                          duration,
+                        ),
+                      })
+                    }
+                  >
+                    Shorten
+                  </button>
+                </div>
+                <div className="noteButtonRow">
+                  <button
+                    type="button"
+                    className="smallButton"
+                    title="Move to the visually upper string while keeping MIDI note and duration"
+                    onClick={() => moveSelectedString(1)}
+                  >
+                    String ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="smallButton"
+                    title="Move to the visually lower string while keeping MIDI note and duration"
+                    onClick={() => moveSelectedString(-1)}
+                  >
+                    String ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="smallButton"
+                    onClick={() => transposeSelectedPitch(-12)}
+                  >
+                    Pitch -12
+                  </button>
+                  <button
+                    type="button"
+                    className="smallButton"
+                    onClick={() => transposeSelectedPitch(12)}
+                  >
+                    Pitch +12
+                  </button>
+                </div>
+                <div className="noteButtonRow dangerRow">
+                  <button
+                    type="button"
+                    className="dangerButton"
+                    onClick={() => onDeleteNote(selectedNote.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
               <div className="chordMemberEditor">
                 <div className="chordMemberHeader">
@@ -1153,7 +1496,7 @@ export function TabEditor({
                         onClick={() => focusChordMember(note.id)}
                         title="Focus this note"
                       >
-                        {index + 1}. {midiToName(note.pitch)}
+                        {index + 1}. {midiToName(note.pitch)}{excludedNoteIds.has(note.id) ? ` (${excludedFretLabel(note, localTuning)})` : ""}
                       </button>
                       <label>
                         String
@@ -1161,12 +1504,15 @@ export function TabEditor({
                           type="number"
                           min={1}
                           max={localTuning.length}
-                          value={note.string ?? 1}
+                          value={toDisplayStringNumber(note.string ?? 1, localTuning.length)}
                           onChange={(event) =>
                             updateChordMember(note, {
-                              string: clamp(
-                                Number(event.target.value),
-                                1,
+                              string: toInternalStringNumber(
+                                clamp(
+                                  Number(event.target.value),
+                                  1,
+                                  localTuning.length,
+                                ),
                                 localTuning.length,
                               ),
                             })
@@ -1211,7 +1557,7 @@ export function TabEditor({
         />
 
         <section className="chordPanel">
-          <div className="subHeader">Inserimento rapido</div>
+          <div className="subHeader">Quick insert</div>
           <button
             type="button"
             className="secondaryButton"
@@ -1236,10 +1582,11 @@ export function TabEditor({
       </div>
 
       <p className="hint">
-        Doppio click sulla griglia per inserire una nota. Shift+doppio click
-        aggiunge un sync point. Trascina una nota per spostarla nel tempo o su
-        un'altra corda mantenendo la stessa nota MIDI quando la corda puo suonarla. Se selezioni una nota di un accordo, vengono selezionate anche le altre note con lo stesso start. Usa il pannello per tasto, durata, accordatura e
-        tecniche.
+        Double click the grid to add a note. Shift+double click adds a sync
+        point. Drag a note to move it in time or to another string while keeping
+        the same MIDI note when that string can play it. If you select one note
+        in a chord, the other notes with the same start time are selected too.
+        Use the panel to edit fret, duration, tuning, and techniques.
       </p>
     </section>
   );

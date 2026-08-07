@@ -8,7 +8,7 @@ from typing import Callable
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
-from app.api_models import JobResponse, LyricsTextSyncRequest, LyricsTranscriptionRequest, StemArrangementRequest, StemToneGenerationRequest
+from app.api_models import ArrangementAutoSyncRequest, JobResponse, LyricsTextSyncRequest, LyricsTranscriptionRequest, StemArrangementRequest, StemToneGenerationRequest
 from app.runtime_state import PROJECTS_ROOT, UPLOADS, cleanup_backend_working_directory
 from app.services.jobs_service import create_queued_job
 
@@ -22,6 +22,7 @@ class JobsRouterDeps:
     process_lyrics_text_sync_job: Callable[..., None]
     process_stem_arrangement_job: Callable[..., None]
     process_stem_tone_job: Callable[..., None]
+    process_arrangement_autosync_job: Callable[..., None]
     choose_local_input_file: Callable[[str], Path | None]
     choose_local_output_dir: Callable[[str], Path | None]
     choose_local_batch_psarc_dir: Callable[[], Path | None]
@@ -98,7 +99,7 @@ def create_jobs_router(deps: JobsRouterDeps) -> APIRouter:
 
     @router.post("/api/jobs/open-local", response_model=JobResponse)
     async def create_open_local_job(
-        mode: str = Form("sloppack"),
+        mode: str = Form("feedpak"),
         output_dir: str = Form(""),
     ) -> JobResponse:
         selected = deps.choose_local_input_file(mode)
@@ -192,6 +193,16 @@ def create_jobs_router(deps: JobsRouterDeps) -> APIRouter:
         threading.Thread(
             target=deps.process_stem_tone_job,
             args=(job_id, request.project_id, request.stem_id, request.arrangement_label),
+            daemon=True,
+        ).start()
+        return JobResponse(job_id=job_id)
+
+    @router.post("/api/jobs/arrangements/auto-sync", response_model=JobResponse)
+    async def create_arrangement_autosync_job(request: ArrangementAutoSyncRequest) -> JobResponse:
+        job_id = create_queued_job()
+        threading.Thread(
+            target=deps.process_arrangement_autosync_job,
+            args=(job_id, request.project_id, request.arrangement_id, request.stem_id),
             daemon=True,
         ).start()
         return JobResponse(job_id=job_id)

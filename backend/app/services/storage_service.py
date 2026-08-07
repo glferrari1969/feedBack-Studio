@@ -14,7 +14,7 @@ def safe_output_dir(output_dir: str | None, *, default_workspace: Path) -> Path:
 
 
 def unpack_sloppack(sloppack: Path, project_dir: Path) -> Path:
-    source = project_dir / "sloppack"
+    source = project_dir / "feedpak"
     if source.exists():
         shutil.rmtree(source)
     source.mkdir(parents=True, exist_ok=True)
@@ -51,7 +51,12 @@ def _read_path_marker(path: Path) -> Path | None:
 def project_original_save_path(source_dir: Path, project: dict | None = None) -> Path:
     candidate = None
     if project:
-        candidate = project.get("originalSloppackPath") or project.get("sloppackPath")
+        candidate = (
+            project.get("originalFeedpakPath")
+            or project.get("feedpakPath")
+            or project.get("originalSloppackPath")
+            or project.get("sloppackPath")
+        )
     if candidate:
         try:
             return Path(str(candidate)).expanduser().resolve()
@@ -66,7 +71,7 @@ def project_original_save_path(source_dir: Path, project: dict | None = None) ->
 def project_working_save_path(source_dir: Path, project: dict | None = None) -> Path:
     candidate = None
     if project:
-        candidate = project.get("workingSloppackPath")
+        candidate = project.get("workingFeedpakPath") or project.get("workingSloppackPath")
     if candidate:
         try:
             return Path(str(candidate)).expanduser().resolve()
@@ -75,7 +80,7 @@ def project_working_save_path(source_dir: Path, project: dict | None = None) -> 
     marked = _read_path_marker(source_dir.parent / "working_target.txt")
     if marked:
         return marked
-    return (source_dir.parent / "working.sloppack").resolve()
+    return (source_dir.parent / "working.feedpak").resolve()
 
 
 def project_save_path(source_dir: Path, project: dict | None = None) -> Path:

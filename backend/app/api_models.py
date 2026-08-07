@@ -64,3 +64,9 @@ class StemToneGenerationRequest(BaseModel):
     project_id: str
     stem_id: str
     arrangement_label: str = "Generated tones"
+
+
+class ArrangementAutoSyncRequest(BaseModel):
+    project_id: str
+    arrangement_id: str
+    stem_id: str

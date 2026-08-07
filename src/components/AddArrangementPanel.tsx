@@ -9,7 +9,7 @@ interface Props {
   defaultInstrument?: 'guitar' | 'bass' | 'keys' | 'drums';
 }
 
-const GP_FILE_RE = /\.(gp5|gp4|gp3|gpx|gp)$/i;
+const GP_FILE_RE = /\.(gp5|gp4|gp3|gpx)$/i;
 
 function isGpFile(file: File | null): boolean {
   if (!file) return false;
@@ -134,7 +134,7 @@ export function AddArrangementPanel({
             ref={fileInputRef}
             className="hiddenInput"
             type="file"
-            accept=".mid,.midi,.gp5,.gp4,.gp3,.gpx,.gp"
+            accept=".mid,.midi,.gp5,.gp4,.gp3,.gpx"
             onChange={(e) => { void handleFileChange(e.target.files?.[0] ?? null); }}
           />
           <button

@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import type { ToneBlock } from "../types/music";
 import {
-  addSloppackGear,
-  addSloppackGearRecord,
-  deleteSloppackGearEntry,
+  addFeedpakGear,
+  addFeedpakGearRecord,
+  deleteFeedpakGearEntry,
   getGearKey,
   getGearLabel,
   getGearParams,
   getGearSlot,
   getGearType,
-  getSloppackGearEntries,
+  getFeedpakGearEntries,
   getToneDefinitions,
   getToneName,
   getVstLookupKey,
@@ -21,11 +21,11 @@ import {
   setGearParams,
   setToneName,
   updateGearField,
-  updateSloppackGearEntry,
+  updateFeedpakGearEntry,
   type GearRecord,
-  type SloppackGearEntry,
+  type FeedpakGearEntry,
   type ToneDefinition,
-} from "../lib/sloppackTones";
+} from "../lib/feedpakTones";
 import {
   GEAR_CATALOG,
   makeGearFromCatalog,
@@ -105,8 +105,8 @@ export function ToneChainStrip({ tones, onChange, onDeleteTone }: ToneChainStrip
 
   const selectedIndex = Math.max(0, names.indexOf(selectedName));
   const selectedDefinition = definitions[selectedIndex];
-  const selectedGearEntries = useMemo(() => getSloppackGearEntries(selectedDefinition), [selectedDefinition]);
-  const selectedEntry: SloppackGearEntry | undefined = selectedGearEntries[selectedGearIndex];
+  const selectedGearEntries = useMemo(() => getFeedpakGearEntries(selectedDefinition), [selectedDefinition]);
+  const selectedEntry: FeedpakGearEntry | undefined = selectedGearEntries[selectedGearIndex];
   const selectedGear: GearRecord | undefined = selectedEntry?.gear;
   const selectedParams = selectedGear ? getGearParams(selectedGear) : {};
   const vstSuggestions = selectedGear ? getVstSuggestions(selectedGear) : [];
@@ -159,25 +159,25 @@ export function ToneChainStrip({ tones, onChange, onDeleteTone }: ToneChainStrip
 
   const updateSelectedGear = (nextGear: GearRecord) => {
     if (!selectedDefinition || !selectedEntry) return;
-    emitDefinition(updateSloppackGearEntry(selectedDefinition, selectedEntry, nextGear));
+    emitDefinition(updateFeedpakGearEntry(selectedDefinition, selectedEntry, nextGear));
   };
 
   const addGear = () => {
     if (!selectedDefinition) return;
-    emitDefinition(addSloppackGear(selectedDefinition, selectedGearEntries.length));
+    emitDefinition(addFeedpakGear(selectedDefinition, selectedGearEntries.length));
     setSelectedGearIndex(selectedGearEntries.length);
   };
 
   const addGearFromCatalog = (item: GearCatalogItem) => {
     if (!selectedDefinition) return;
     const created = makeGearFromCatalog(item) as GearRecord;
-    emitDefinition(addSloppackGearRecord(selectedDefinition, selectedGearEntries.length, created, item.id));
+    emitDefinition(addFeedpakGearRecord(selectedDefinition, selectedGearEntries.length, created, item.id));
     setSelectedGearIndex(selectedGearEntries.length);
   };
 
   const deleteGear = () => {
     if (!selectedDefinition || !selectedEntry) return;
-    emitDefinition(deleteSloppackGearEntry(selectedDefinition, selectedEntry));
+    emitDefinition(deleteFeedpakGearEntry(selectedDefinition, selectedEntry));
     setVisualPanelOpen(false);
     setSelectedGearIndex((current) => Math.max(0, current - 1));
   };
@@ -305,12 +305,12 @@ export function ToneChainStrip({ tones, onChange, onDeleteTone }: ToneChainStrip
       <div className="panelHeader compactHeader">
         <div>
           <h3>Tone effect chain</h3>
-          <span>Chain read from and saved to the sloppack block <code>tones.definitions[].GearList</code>.</span>
+          <span>Chain read from and saved to the feedpak block <code>tones.definitions[].GearList</code>.</span>
         </div>
       </div>
 
       <div className="toneChainLayout">
-        <div className="toneChainToneList" aria-label="Tone definitions in the sloppack">
+        <div className="toneChainToneList" aria-label="Tone definitions in the feedpak">
           {names.map((name, index) => (
             <div className="toneListRow" key={`${name}-${index}`}>
               <button className={`tonePill ${name === selectedName ? "selected" : ""}`} onClick={() => { setSelectedName(name); setSelectedGearIndex(0); setVisualPanelOpen(false); }}>
@@ -367,7 +367,7 @@ export function ToneChainStrip({ tones, onChange, onDeleteTone }: ToneChainStrip
                   onClick={() => addGearFromCatalog(item)}
                   title="Add this catalog effect to GearList"
                 >
-                  <span>{item.category} · {item.slot}</span>
+                  <span>{item.category} - {item.slot}</span>
                   <strong>{item.name}</strong>
                   <small>{item.description}</small>
                 </button>
@@ -380,7 +380,7 @@ export function ToneChainStrip({ tones, onChange, onDeleteTone }: ToneChainStrip
 
           {selectedGearEntries.length === 0 ? (
             <p className="hint smallHint paddedHint">
-              This tone does not contain <code>GearList</code> in the recognized sloppack format, or the list is empty. You can add an effect to GearList or edit the raw JSON below.
+              This tone does not contain <code>GearList</code> in the recognized feedpak format, or the list is empty. You can add an effect to GearList or edit the raw JSON below.
             </p>
           ) : (
             <div className="effectChainGraphic largeEffectChain" aria-label="Graphical effect chain from GearList">
@@ -389,9 +389,9 @@ export function ToneChainStrip({ tones, onChange, onDeleteTone }: ToneChainStrip
                   <button className={`effectChainNode ${index === selectedGearIndex ? "selected" : ""}`} onClick={() => { setSelectedGearIndex(index); setVisualPanelOpen(true); }} title="Open graphical effect panel">
                     <span className="effectIndex">{index + 1}</span>
                     <strong>{entry.label}</strong>
-                    <small>{getGearType(entry.gear)}{entry.slot ? ` · ${entry.slot}` : ""}</small>
+                    <small>{getGearType(entry.gear)}{entry.slot ? ` - ${entry.slot}` : ""}</small>
                   </button>
-                  {index < selectedGearEntries.length - 1 && <span className="effectChainArrow">→</span>}
+                  {index < selectedGearEntries.length - 1 && <span className="effectChainArrow">-&gt;</span>}
                 </div>
               ))}
             </div>
@@ -412,9 +412,9 @@ export function ToneChainStrip({ tones, onChange, onDeleteTone }: ToneChainStrip
                     {vstSuggestions.map((candidate, index) => (
                       <li key={`${getVstPluginName(candidate)}-${index}`}>
                         <strong>{getVstPluginName(candidate)}</strong>
-                        {String(candidate.manufacturer || "").trim() ? ` · ${candidate.manufacturer}` : ""}
-                        {String(candidate.format || "").trim() ? ` · ${candidate.format}` : ""}
-                        {Object.keys(getVstParamMappings(candidate)).length ? ` — ${Object.keys(getVstParamMappings(candidate)).length} mapped knob${Object.keys(getVstParamMappings(candidate)).length === 1 ? "" : "s"}` : ""}
+                        {String(candidate.manufacturer || "").trim() ? ` - ${candidate.manufacturer}` : ""}
+                        {String(candidate.format || "").trim() ? ` - ${candidate.format}` : ""}
+                        {Object.keys(getVstParamMappings(candidate)).length ? ` - ${Object.keys(getVstParamMappings(candidate)).length} mapped knob${Object.keys(getVstParamMappings(candidate)).length === 1 ? "" : "s"}` : ""}
                       </li>
                     ))}
                   </ul>
@@ -447,7 +447,7 @@ export function ToneChainStrip({ tones, onChange, onDeleteTone }: ToneChainStrip
                       {key}
                       <span className="paramInputLine">
                         <input value={String(value)} type={typeof value === "number" ? "number" : "text"} step={typeof value === "number" ? "0.01" : undefined} onChange={(event) => updateSelectedGear(setGearParams(selectedGear, { ...selectedParams, [key]: parseParamValue(event.target.value, value) }))} />
-                        <button className="dangerButton miniButton" onClick={() => { const next = { ...selectedParams }; delete next[key]; updateSelectedGear(setGearParams(selectedGear, next)); }}>×</button>
+                        <button className="dangerButton miniButton" onClick={() => { const next = { ...selectedParams }; delete next[key]; updateSelectedGear(setGearParams(selectedGear, next)); }}>&times;</button>
                       </span>
                     </label>
                   ))
@@ -457,7 +457,7 @@ export function ToneChainStrip({ tones, onChange, onDeleteTone }: ToneChainStrip
                     {key}
                     <span className="paramInputLine">
                       <input value={String(value)} type={typeof value === "number" ? "number" : "text"} step={typeof value === "number" ? "0.01" : undefined} onChange={(event) => updateSelectedGear(setGearParams(selectedGear, { ...selectedParams, [key]: parseParamValue(event.target.value, value) }))} />
-                      <button className="dangerButton miniButton" onClick={() => { const next = { ...selectedParams }; delete next[key]; updateSelectedGear(setGearParams(selectedGear, next)); }}>×</button>
+                      <button className="dangerButton miniButton" onClick={() => { const next = { ...selectedParams }; delete next[key]; updateSelectedGear(setGearParams(selectedGear, next)); }}>&times;</button>
                     </span>
                   </label>
                 ))}
@@ -487,7 +487,7 @@ export function ToneChainStrip({ tones, onChange, onDeleteTone }: ToneChainStrip
             <div className="panelHeader withAction">
               <div>
                 <h3>{getGearLabel(selectedGear, selectedEntry?.label || "Effect")}</h3>
-                <span className="miniMeta">Graphical controls · changes are applied directly to the tone</span>
+                <span className="miniMeta">Graphical controls - changes are applied directly to the tone</span>
               </div>
               <button type="button" className="secondaryButton" onClick={() => setVisualPanelOpen(false)}>Close</button>
             </div>
@@ -522,3 +522,5 @@ export function ToneChainStrip({ tones, onChange, onDeleteTone }: ToneChainStrip
     </section>
   );
 }
+
+

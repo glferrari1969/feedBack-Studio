@@ -17,6 +17,7 @@ pip install -r requirements.txt
 - `GET /api/health`: reports Python/native tool availability.
 - `POST /api/jobs/open`: opens feedpak, converts PSARC, or creates a feedpak from audio.
 - `GET /api/jobs/{job_id}`: returns job status and progress.
+- `POST /api/jobs/arrangements/auto-sync`: runs arrangement-specific AutoSync against the selected stem and updates working-copy synchronization.
 - `GET /api/projects/{project_id}/arrangements/{arrangement_id}`: loads an arrangement.
 - `POST /api/projects/{project_id}/save`: saves project metadata, sync points, lyrics, tone data, and packs the backend working feedpak.
 - `POST /api/projects/{project_id}/commit`: writes the current working project to the original/final feedpak target.
@@ -67,6 +68,7 @@ When converting MP3/audio or PSARC, the default output naming convention is:
 - PSARC imports use `ebeats` when available.
 - MP3/audio imports create `full.ogg` and generate automatic `beatgrid.json`, `tempoMap.json`, and `syncpoints.json`.
 - If Demucs is enabled and `drums.ogg` exists, beat tracking uses that stem; otherwise it uses `full.ogg`.
+- Arrangements AutoSync can remap synchronization by matching selected arrangement note onsets against a selected stem, then writing updated `sync/beatgrid.json`, `sync/syncpoints.json`, and `sync/tempoMap.json` in the working copy.
 
 ## Tone data
 

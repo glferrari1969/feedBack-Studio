@@ -5,7 +5,7 @@
 <h1 align="center">feedBack Studio</h1>
 
 <p align="center">
-  <a href="https://github.com/glferrari1969/feedBack-Studio/releases/download/v0.1.0-alpha.3/feedBack-Studio-0.1.0-alpha.3-Windows-x64-Setup.exe"><strong>Download installer Windows - v0.1.0-alpha.3</strong></a><br />
+  <a href="https://github.com/glferrari1969/feedBack-Studio/releases/download/v0.1.0-alpha.4/feedBack-Studio-0.1.0-alpha.4-Windows-x64-Setup.exe"><strong>Download installer Windows - v0.1.0-alpha.4</strong></a><br />
   <sub>Installer alfa x64 | nessuna installazione manuale di Python o Node.js</sub>
 </p>
 
@@ -25,7 +25,7 @@ This builds the frontend, starts the backend, and opens feedBack Studio in a nat
 
 ### Windows alpha installer
 
-Pre-release Windows installers are published on the repository's [Releases page](https://github.com/glferrari1969/feedBack-Studio/releases). The current build can be downloaded directly as [feedBack Studio v0.1.0-alpha.3 for Windows x64](https://github.com/glferrari1969/feedBack-Studio/releases/download/v0.1.0-alpha.3/feedBack-Studio-0.1.0-alpha.3-Windows-x64-Setup.exe). Run it and launch **feedBack Studio** from the Start menu. The installer is per-user, does not require Python or Node.js to be installed, and includes the frontend, backend, FFmpeg, and vgmstream.
+Pre-release Windows installers are published on the repository's [Releases page](https://github.com/glferrari1969/feedBack-Studio/releases). The current build can be downloaded directly as [feedBack Studio v0.1.0-alpha.4 for Windows x64](https://github.com/glferrari1969/feedBack-Studio/releases/download/v0.1.0-alpha.4/feedBack-Studio-0.1.0-alpha.4-Windows-x64-Setup.exe). Run it and launch **feedBack Studio** from the Start menu. The installer is per-user, does not require Python or Node.js to be installed, and includes the frontend, backend, FFmpeg, and vgmstream.
 
 The installer offers an optional **AI stem separation and lyric transcription** component. Selecting it downloads a private Python runtime and the large AI dependencies during setup, without requiring manual commands or a system-wide Python installation. AI models are still downloaded the first time the corresponding feature is used. The normal editors and converters remain available when this optional component is skipped.
 
@@ -36,7 +36,7 @@ Application working data is stored under `%LOCALAPPDATA%\feedBack Studio`. Unins
 To build the installer locally, install Python 3.11, Node.js, and Inno Setup 6, then run:
 
 ```powershell
-.\packaging\windows\build-installer.ps1 -Version 0.1.0-alpha.1
+.\packaging\windows\build-installer.ps1 -Version 0.1.0-alpha.4
 ```
 
 ### Frontend + backend (development)
@@ -93,6 +93,7 @@ http://localhost:8000/api/health
 - Automatic `full.ogg` creation when stem separation is disabled.
 - Automatic MP3/audio synchronization using beat tracking.
 - PSARC synchronization using imported `ebeats` when available.
+- Arrangement-aware AutoSync that aligns project sync timing from the selected arrangement against the selected stem.
 - Metadata editing for artist, album, title, year, cover art, technical fields, and references.
 - Arrangement editing with waveform, sync points, tab/piano roll, score view, and tone chains.
 - Import, replace, and export arrangements as MIDI or MusicXML.
@@ -139,6 +140,7 @@ The top-right menu follows the main editing flow in this order:
    - Work on arrangements, sync points, waveform, tab/piano roll, score view, and tone chains.
    - Use the arrangement selector for import/export controls.
    - Replace the current arrangement from MIDI or Guitar Pro.
+   - Use **AutoSync arrangement** to align sync timing for the selected arrangement against the selected stem.
    - Export the selected arrangement as MIDI or MusicXML.
    - Editor changes remain pending until **Write to original feedpak** is used.
 

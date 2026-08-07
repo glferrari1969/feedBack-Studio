@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import type { ProjectState } from '../types/music';
 import {
   browseOutputDir,
@@ -22,7 +22,7 @@ interface Props {
   landing?: boolean;
 }
 
-type InputMode = 'sloppack' | 'psarc' | 'audio';
+type InputMode = 'feedpak' | 'psarc' | 'audio';
 const OUTPUT_DIR_STORAGE_KEY = 'feedbackStudio.outputDir';
 const OUTPUT_NAME_PATTERN_STORAGE_KEY = 'feedbackStudio.outputNamePattern';
 const DEFAULT_OUTPUT_NAME_PATTERN = String.raw`<Artist>\<Album>\<Artist>-<Album>-<Name>-<Version>`;
@@ -277,7 +277,7 @@ export function MainActions({
       </div>
 
       <div className="mainButtons">
-        <button disabled={!backendOnline || busy} onClick={() => requestFile('sloppack')}>Open feedpak</button>
+        <button disabled={!backendOnline || busy} onClick={() => requestFile('feedpak')}>Open feedpak</button>
         <button disabled={!backendOnline || busy} onClick={() => requestFile('psarc')}>Convert PSARC</button>
         <button disabled={!backendOnline || busy} onClick={() => { void requestBatchConversion(); }}>Batch conversion</button>
         <button disabled={!backendOnline || busy} onClick={() => requestFile('audio')}>Create feedpak from MP3</button>
@@ -292,3 +292,4 @@ export function MainActions({
     </section>
   );
 }
+

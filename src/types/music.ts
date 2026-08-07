@@ -1,4 +1,4 @@
-export type StemKind = 'mix' | 'full' | 'vocals' | 'drums' | 'bass' | 'guitar' | 'piano' | 'other';
+﻿export type StemKind = 'mix' | 'full' | 'vocals' | 'drums' | 'bass' | 'guitar' | 'piano' | 'other';
 
 export interface StemTrack {
   id: string;
@@ -114,8 +114,10 @@ export interface ProjectState {
   syncWarning?: string;
   musicXml?: string | null;
   outputPath?: string;
-  sloppackPath?: string;
-  originalSloppackPath?: string;
-  workingSloppackPath?: string;
+  feedpakPath?: string;
+  originalFeedpakPath?: string;
+  workingFeedpakPath?: string;
   hasUncommittedChanges?: boolean;
 }
+
+

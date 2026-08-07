@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+﻿import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { demoProject } from "./demo/demoProject";
 import type {
   ArrangementInfo,
@@ -11,6 +11,7 @@ import type {
 import { useAnimationFrame } from "./hooks/useAnimationFrame";
 import { MainActions } from "./components/MainActions";
 import {
+  createArrangementAutoSyncJob,
   createDemucsJob,
   createLyricsTranscriptionJob,
   createLyricsTextSyncJob,
@@ -698,6 +699,9 @@ export default function App() {
   const [toneGenerationRunning, setToneGenerationRunning] = useState(false);
   const [toneGenerationStep, setToneGenerationStep] = useState("");
   const [toneGenerationProgress, setToneGenerationProgress] = useState(0);
+  const [arrangementAutoSyncRunning, setArrangementAutoSyncRunning] = useState(false);
+  const [arrangementAutoSyncStep, setArrangementAutoSyncStep] = useState("");
+  const [arrangementAutoSyncProgress, setArrangementAutoSyncProgress] = useState(0);
   const [saveNotice, setSaveNotice] = useState<{
     title: string;
     message: string;
@@ -803,7 +807,12 @@ export default function App() {
     );
   }, [project.stems, selectedStemId]);
 
-  const selectedAudioUrl = resolveAssetUrl(selectedStem?.url);
+  const selectedAudioUrl = resolveAssetUrl(
+    selectedStem?.url ||
+      (project.id
+        ? `/api/projects/${project.id}/asset/stems/full.ogg`
+        : undefined),
+  );
 
   const stemsWithAudio = useMemo(
     () => project.stems.filter((stem) => Boolean(stem.url)),
@@ -1579,6 +1588,64 @@ export default function App() {
     }
   };
 
+  const runArrangementAutoSync = async () => {
+    if (arrangementAutoSyncRunning) return;
+    if (!selectedMelodicArrangement) {
+      alert("Select an arrangement before running AutoSync.");
+      return;
+    }
+    if (!selectedStem?.id) {
+      alert("Select a stem before running AutoSync.");
+      return;
+    }
+
+    const arrangementName = selectedMelodicArrangement.name || selectedMelodicArrangement.id;
+    const stemName = selectedStem.name || selectedStem.id;
+
+    const confirmed = window.confirm(
+      `Run AutoSync for arrangement "${arrangementName}" against stem "${stemName}"?\n\nThis updates sync points and timing in the working copy.`,
+    );
+    if (!confirmed) return;
+
+    setArrangementAutoSyncRunning(true);
+    setArrangementAutoSyncStep("Queued");
+    setArrangementAutoSyncProgress(0);
+
+    try {
+      const jobId = await createArrangementAutoSyncJob(
+        project.id,
+        selectedMelodicArrangement.id,
+        selectedStem.id,
+      );
+      for (;;) {
+        const job = await getProcessingJob(jobId);
+        setArrangementAutoSyncStep(job.step || job.status);
+        setArrangementAutoSyncProgress(job.progress || 0);
+
+        if (job.status === "done") {
+          if (job.project) {
+            loadProcessedProject(job.project, "arrangements");
+          }
+          setHasUncommittedChanges(true);
+          setArrangementAutoSyncStep("AutoSync completed for the selected arrangement and stem.");
+          break;
+        }
+
+        if (job.status === "error") {
+          throw new Error(job.error || job.step || "Arrangement AutoSync failed");
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 1100));
+      }
+    } catch (error) {
+      setArrangementAutoSyncStep("");
+      setArrangementAutoSyncProgress(0);
+      alert(error instanceof Error ? error.message : String(error));
+    } finally {
+      setArrangementAutoSyncRunning(false);
+    }
+  };
+
   const markProjectDirty = () => setHasUncommittedChanges(true);
 
   const showSaveNotice = (
@@ -1588,7 +1655,7 @@ export default function App() {
     kind: "working" | "original" = "working",
   ) => setSaveNotice({ title, message, detail, kind });
 
-  const writeToOriginalSloppack = async () => {
+  const writeToOriginalFeedpak = async () => {
     setCommitting(true);
     try {
       const committed = await commitProject({ ...project, hasUncommittedChanges: false });
@@ -1597,7 +1664,7 @@ export default function App() {
       showSaveNotice(
         "Original feedpak updated",
         "The current working copy was written to the original file on disk.",
-        committed.sloppackPath ?? committed.originalSloppackPath,
+        committed.feedpakPath ?? committed.originalFeedpakPath,
         "original",
       );
     } catch (error) {
@@ -1765,6 +1832,23 @@ export default function App() {
     });
   };
 
+  const seekToMelodicChord = (time: number) => {
+    seekTo(time);
+
+    let nearestNote: MidiNote | undefined;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const note of project.notes) {
+      if (note.trackId !== selectedMelodicArrangementId) continue;
+      const distance = Math.abs(note.start - time);
+      if (distance < nearestDistance) {
+        nearestNote = note;
+        nearestDistance = distance;
+      }
+    }
+
+    if (nearestNote) selectNote(nearestNote.id);
+  };
+
   const addNotes = (notes: MidiNote[]) => {
     recordEditorUndoSnapshot("note-add");
     markProjectDirty();
@@ -1831,6 +1915,31 @@ export default function App() {
           : arrangement,
       ),
     }));
+  };
+
+  const changeSelectedArrangementTuning = (nextTuning: number[]) => {
+    const normalized = nextTuning
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value))
+      .map((value) => Math.max(0, Math.min(127, Math.round(value))));
+    if (!normalized.length) return;
+
+    const currentTuning = selectedMelodicArrangement?.tuning ?? [];
+    if (currentTuning.join(",") === normalized.join(",")) return;
+
+    markProjectDirty();
+
+    setProject((prev) => {
+      return {
+        ...prev,
+        hasUncommittedChanges: true,
+        arrangements: prev.arrangements.map((arrangement) =>
+          arrangement.id === selectedMelodicArrangementId
+            ? { ...arrangement, tuning: normalized }
+            : arrangement,
+        ),
+      };
+    });
   };
 
   const deleteTone = (toneName: string): boolean => {
@@ -1968,9 +2077,9 @@ export default function App() {
             <button
               type="button"
               className={hasUncommittedChanges ? "dangerButton" : "secondaryButton"}
-              onClick={writeToOriginalSloppack}
+              onClick={writeToOriginalFeedpak}
               disabled={!hasUncommittedChanges || committing || discarding}
-              title={project.sloppackPath || project.originalSloppackPath || "Original feedpak target"}
+              title={project.feedpakPath || project.originalFeedpakPath || "Original feedpak target"}
             >
               {committing ? "Writing..." : "Write to original feedpak"}
             </button>
@@ -1993,7 +2102,7 @@ export default function App() {
           role="status"
           aria-live="polite"
         >
-          <div className="saveNoticeIcon" aria-hidden="true">✓</div>
+          <div className="saveNoticeIcon" aria-hidden="true">OK</div>
           <div className="saveNoticeCopy">
             <strong>{saveNotice.title}</strong>
             <span>{saveNotice.message}</span>
@@ -2005,7 +2114,7 @@ export default function App() {
             aria-label="Close save notification"
             onClick={() => setSaveNotice(null)}
           >
-            ×
+            &times;
           </button>
         </section>
       ) : null}
@@ -2305,7 +2414,7 @@ export default function App() {
                 duration={project.duration}
                 currentTime={currentTime}
                 selectedStemName={selectedStem?.name ?? "Audio"}
-                selectedStemUrl={selectedStem?.url}
+                selectedStemUrl={selectedAudioUrl}
                 zoom={lyricsZoom}
                 playing={playing}
                 lyrics={project.lyrics}
@@ -2344,7 +2453,7 @@ export default function App() {
             <div>
               <h2>Tones</h2>
               <span className="miniMeta">
-                Edit the tone changes, effect chains, parameters, and raw sloppack tone JSON for the selected arrangement.
+                Edit the tone changes, effect chains, parameters, and raw feedpak tone JSON for the selected arrangement.
               </span>
             </div>
           </div>
@@ -2416,7 +2525,7 @@ export default function App() {
                 onChange={changeArrangementTones}
                 onSeek={seekTo}
                 selectedStemName={selectedStem?.name ?? "Audio"}
-                selectedStemUrl={selectedStem?.url}
+                selectedStemUrl={selectedAudioUrl}
                 waveformZoom={tonesZoom}
                 onWaveformZoomChange={setTonesZoom}
                 playing={playing}
@@ -2517,7 +2626,39 @@ export default function App() {
             <span className="miniMeta">
               Play + MIDI preview: hear audio and tab together to verify sync. Active timbre: {resolvedMidiPreset.label}.
             </span>
+            <button
+              type="button"
+              className="primaryButton"
+              onClick={() => {
+                void runArrangementAutoSync();
+              }}
+              disabled={
+                arrangementAutoSyncRunning ||
+                !selectedMelodicArrangement ||
+                !selectedStem?.id
+              }
+              title="Auto-align sync points using the selected arrangement against the selected stem"
+            >
+              {arrangementAutoSyncRunning ? "AutoSync running..." : "AutoSync arrangement"}
+            </button>
           </section>
+
+          {arrangementAutoSyncStep ? (
+            <section className="panel compactPanel">
+              <div className="jobBox compactJob">
+                <div className="jobTopLine">
+                  <strong>{arrangementAutoSyncStep}</strong>
+                  <span>{arrangementAutoSyncProgress}%</span>
+                </div>
+                <div className="progressTrack">
+                  <div className="progressFill" style={{ width: `${arrangementAutoSyncProgress}%` }} />
+                </div>
+                <p className="hint slimHint" style={{ paddingBottom: 0 }}>
+                  Target arrangement: {selectedMelodicArrangement?.name ?? "-"} | Stem: {selectedStem?.name ?? "-"}
+                </p>
+              </div>
+            </section>
+          ) : null}
 
           <div className="editorGrid">
             <aside className="sidePanel">
@@ -2575,12 +2716,12 @@ export default function App() {
                 beatgrid={project.beatgrid}
                 tempoMap={project.tempoMap}
                 selectedStemName={selectedStem?.name ?? "Audio"}
-                selectedStemUrl={selectedStem?.url}
+                selectedStemUrl={selectedAudioUrl}
                 zoom={waveformZoom}
                 playing={playing}
                 syncPoints={project.syncPoints}
                 selectedSyncPointId={selectedSyncPointId}
-                onSeek={seekTo}
+                onSeek={seekToMelodicChord}
                 onSelectSyncPoint={setSelectedSyncPointId}
                 onChangeSyncPoint={changeSyncPoint}
                 onAddSyncPointAt={addSyncPointAt}
@@ -2614,6 +2755,7 @@ export default function App() {
                       onAddNotes={addNotes}
                       onDeleteNote={deleteNote}
                       onSeek={seekTo}
+                      onChangeTuning={changeSelectedArrangementTuning}
                       headerControl={
                         <ZoomControls
                           label="Zoom"
@@ -2763,7 +2905,7 @@ export default function App() {
                 beatgrid={project.beatgrid}
                 tempoMap={project.tempoMap}
                 selectedStemName={selectedStem?.name ?? "Audio"}
-                selectedStemUrl={selectedStem?.url}
+                selectedStemUrl={selectedAudioUrl}
                 zoom={waveformZoom}
                 playing={playing}
                 syncPoints={project.syncPoints}

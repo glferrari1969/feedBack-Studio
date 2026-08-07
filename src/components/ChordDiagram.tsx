@@ -1,5 +1,10 @@
 import type { ArrangementInfo, MidiNote } from '../types/music';
-import { BASS_STANDARD_TUNING, GUITAR_STANDARD_TUNING, ensureTabPosition } from './FretboardMapper';
+import {
+  BASS_STANDARD_TUNING,
+  GUITAR_STANDARD_TUNING,
+  pitchToPositions,
+  stringFretToPitch,
+} from './FretboardMapper';
 
 interface ChordDiagramProps {
   notes: MidiNote[];
@@ -191,13 +196,88 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+const FRET_MAX = 24;
 const OPEN_POSITION_MAX_FRET = 4;
+
+function isExactPositionPlayable(note: MidiNote, tuning: number[]) {
+  if (typeof note.string !== 'number' || typeof note.fret !== 'number') return false;
+  if (note.string < 1 || note.string > tuning.length) return false;
+  if (note.fret < 0 || note.fret > FRET_MAX) return false;
+  return stringFretToPitch(note.string, note.fret, tuning) === note.pitch;
+}
+
+function pickNearestPosition(
+  note: MidiNote,
+  tuning: number[],
+  previous?: { string: number; fret: number },
+) {
+  const positions = pitchToPositions(note.pitch, tuning, FRET_MAX);
+  if (!positions.length) return null;
+
+  const preferredString =
+    typeof note.string === 'number'
+      ? clamp(note.string, 1, tuning.length)
+      : undefined;
+  const preferredFret =
+    typeof note.fret === 'number' ? clamp(note.fret, 0, FRET_MAX) : undefined;
+
+  const anchorString = preferredString ?? previous?.string ?? Math.ceil(tuning.length / 2);
+  const anchorFret = preferredFret ?? previous?.fret ?? 5;
+
+  return positions
+    .slice()
+    .sort((a, b) => {
+      const scoreA =
+        Math.abs(a.string - anchorString) * (preferredString ? 4 : 3) +
+        Math.abs(a.fret - anchorFret);
+      const scoreB =
+        Math.abs(b.string - anchorString) * (preferredString ? 4 : 3) +
+        Math.abs(b.fret - anchorFret);
+      if (scoreA !== scoreB) return scoreA - scoreB;
+      return a.fret - b.fret;
+    })[0];
+}
+
+function mapTrackNotesToTuning(trackNotes: MidiNote[], tuning: number[]) {
+  const positionedNotes: Array<MidiNote & { string: number; fret: number }> = [];
+  const excludedNotes: MidiNote[] = [];
+  let previous: { string: number; fret: number } | undefined;
+
+  trackNotes.forEach((note) => {
+    if (isExactPositionPlayable(note, tuning)) {
+      const fixedNote = {
+        ...note,
+        string: note.string as number,
+        fret: note.fret as number,
+      };
+      positionedNotes.push(fixedNote);
+      previous = { string: fixedNote.string, fret: fixedNote.fret };
+      return;
+    }
+
+    const next = pickNearestPosition(note, tuning, previous);
+    if (!next) {
+      excludedNotes.push(note);
+      return;
+    }
+
+    const mappedNote = {
+      ...note,
+      string: next.string,
+      fret: next.fret,
+    };
+    positionedNotes.push(mappedNote);
+    previous = { string: mappedNote.string, fret: mappedNote.fret };
+  });
+
+  return { positionedNotes, excludedNotes };
+}
 
 export function ChordDiagram({ notes, arrangement, arrangementKind, selectedTrackId, currentTime }: ChordDiagramProps) {
   if (!arrangementKind) {
     return (
       <section className="panel chordDiagramPanel">
-        <div className="panelHeader">Diagramma accordo</div>
+        <div className="panelHeader">Chord diagram</div>
         <p className="hint slimHint">Available for guitar and bass arrangements.</p>
       </section>
     );
@@ -217,12 +297,9 @@ export function ChordDiagram({ notes, arrangement, arrangementKind, selectedTrac
       ? activeFromTime
       : trackNotes.filter((note) => Math.abs(note.start - currentTime) <= 0.18).slice(0, tuning.length);
 
-  let previous: MidiNote | undefined;
-  const mapped = active.map((note) => {
-    const next = ensureTabPosition(note, tuning, previous);
-    previous = next;
-    return next;
-  });
+  const mappedResult = mapTrackNotesToTuning(active, tuning);
+  const mapped = mappedResult.positionedNotes;
+  const excludedCount = mappedResult.excludedNotes.length;
 
   const fretted = mapped.filter(
     (note) =>
@@ -259,10 +336,10 @@ export function ChordDiagram({ notes, arrangement, arrangementKind, selectedTrac
   return (
     <section className="panel chordDiagramPanel">
       <div className="panelHeader withAction">
-        <span>Diagramma accordo</span>
+        <span>Chord diagram</span>
         <span className="miniMeta">{detectChordName(mapped)}</span>
       </div>
-      <svg className="chordDiagram" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Diagramma accordo corrente">
+      <svg className="chordDiagram" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Current chord diagram">
         {Array.from({ length: stringCount }).map((_, index) => {
           const x = left + index * stringGap;
           return <line key={`s-${index}`} x1={x} y1={top} x2={x} y2={top + gridHeight} />;
@@ -288,8 +365,8 @@ export function ChordDiagram({ notes, arrangement, arrangementKind, selectedTrac
           const stringNumber = note.string ?? 1;
           const fret = note.fret ?? 0;
           // Tunings are stored from low to high: string 1 is the lowest string.
-          // Nel diagramma accordo mostriamo quindi la corda grave a sinistra e l'acuta a destra,
-          // come in un chord box tradizionale visto frontalmente.
+          // In the chord diagram we therefore show the lowest string on the left
+          // and the highest string on the right, like a traditional front-facing chord box.
           const visualStringIndex = clamp(stringNumber - 1, 0, stringCount - 1);
           const x = left + visualStringIndex * stringGap;
           if (fret === 0) {
@@ -305,6 +382,11 @@ export function ChordDiagram({ notes, arrangement, arrangementKind, selectedTrac
           );
         })}
       </svg>
+      {excludedCount > 0 ? (
+        <p className="hint slimHint">
+          {excludedCount} note(s) are outside this tuning/string setup and are not shown in the chord diagram.
+        </p>
+      ) : null}
       <p className="hint slimHint">Shows active notes at the playhead or the nearest note.</p>
     </section>
   );

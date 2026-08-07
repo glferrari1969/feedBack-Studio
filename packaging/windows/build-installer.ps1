@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.1.0-alpha.1",
+    [string]$Version = "0.1.0-alpha.4",
     [string]$Python = "python",
     [string]$Iscc = "",
     [switch]$SkipDependencies

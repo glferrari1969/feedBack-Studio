@@ -478,7 +478,7 @@ def write_musicxml_from_frontend_notes(project: dict, arrangement_id: str, out_f
     for note in selected:
         grouped.setdefault(note["start"], []).append(note)
 
-    title = html.escape(str(project.get("title") or "Sloppack arrangement"))
+    title = html.escape(str(project.get("title") or "Feedpak arrangement"))
     creator = html.escape(str(project.get("artist") or ""))
     part_name = html.escape(arrangement_name or "Arrangement")
     tab_part_name = f"{part_name} TAB"

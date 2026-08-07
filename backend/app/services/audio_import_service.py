@@ -1,9 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
+
+import yaml
 
 
 def create_mp3_sloppack(
@@ -21,11 +23,11 @@ def create_mp3_sloppack(
     pack_sloppack: Callable[[Path, Path], None],
     removed_user_metadata_keys: set[str],
 ) -> Path:
-    work = Path(tempfile.mkdtemp(prefix="mp3_sloppack_"))
+    work = Path(tempfile.mkdtemp(prefix="mp3_feedpak_"))
     try:
         (work / "stems").mkdir(parents=True, exist_ok=True)
         full_ogg = work / "stems" / "full.ogg"
-        job.update(step="Converting audio to OGG for sloppack", progress=20)
+        job.update(step="Converting audio to OGG for feedpak", progress=20)
         run_command([ffmpeg_executable(), "-y", "-i", str(audio_path), "-vn", "-c:a", "libvorbis", "-q:a", "5", str(full_ogg)])
         duration = audio_duration_seconds(audio_path) or audio_duration_seconds(full_ogg) or 180.0
         manifest = {
@@ -58,10 +60,14 @@ def create_mp3_sloppack(
             (work / "lyrics.json").write_text(json.dumps(tag_lyrics, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
             manifest["lyrics"] = "lyrics.json"
             manifest["lyrics_source"] = tag_lyrics_source or "tag"
-        (work / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        (work / "manifest.yaml").write_text(
+            yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
         pack_sloppack(work, out_path)
         return out_path
     finally:
         import shutil
 
         shutil.rmtree(work, ignore_errors=True)
+
